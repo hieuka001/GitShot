@@ -12,9 +12,9 @@ from pathlib import Path
 
 from PIL import Image
 from PySide6.QtCore import QObject, Qt, QTimer, Signal, QSize
-from PySide6.QtGui import QAction, QColor, QIcon, QPixmap
+from PySide6.QtGui import QAction, QIcon, QPixmap
 from PySide6.QtWidgets import (
-    QApplication, QCheckBox, QComboBox, QFileDialog, QFrame, QGraphicsDropShadowEffect,
+    QApplication, QCheckBox, QComboBox, QFileDialog, QFrame,
     QGridLayout, QGroupBox, QHBoxLayout, QInputDialog, QLabel, QLineEdit, QListWidget,
     QListWidgetItem, QMainWindow, QMenu, QMessageBox, QPushButton, QSpinBox,
     QStackedWidget, QSystemTrayIcon, QTextEdit, QVBoxLayout, QWidget,
@@ -38,40 +38,37 @@ from .tools_extra import (
 from .utils import format_link, make_filename
 
 STYLE = """
-/* ===== Liquid Glass: nền gradient sâu + panel kính mờ + viền sáng + điểm nhấn ngọc/tím ===== */
-QMainWindow, QDialog { background: qlineargradient(x1:0,y1:0,x2:1,y2:1, stop:0 #0a0f22, stop:0.5 #0a1626, stop:1 #150f2e);
-    color: #e8eefc; font-family: 'Segoe UI'; font-size: 13px; }
-QWidget#contentRoot { background: transparent; }
-QFrame#sidebar { background: rgba(255,255,255,0.045); border-right: 1px solid rgba(255,255,255,0.10); }
-QLabel#logo { font-size: 23px; font-weight: 800; color: #ffffff; }
-QLabel#subtitle { color: #a5b4d4; font-size: 12.5px; }
-QLabel#chip { background: rgba(56,189,248,0.13); color: #a5e3ff; border: 1px solid rgba(125,211,252,0.35); border-radius: 10px; padding: 5px 9px; font-size: 11.5px; }
-QPushButton { background: rgba(255,255,255,0.07); color: #eef2ff; border: 1px solid rgba(255,255,255,0.14); border-radius: 11px; padding: 8px 14px; }
-QPushButton:hover { background: rgba(255,255,255,0.12); border-color: rgba(103,232,249,0.55); }
-QPushButton#primaryBtn { background: qlineargradient(x1:0,y1:0,x2:1,y2:0, stop:0 rgba(8,145,178,0.92), stop:1 rgba(124,58,237,0.92));
-    color: white; font-weight: 800; border: 1px solid rgba(255,255,255,0.28); padding: 11px 22px; font-size: 14px; }
-QPushButton#primaryBtn:hover { background: qlineargradient(x1:0,y1:0,x2:1,y2:0, stop:0 rgba(6,182,212,0.98), stop:1 rgba(139,92,246,0.98)); }
-QPushButton#nav { background: transparent; border: 1px solid transparent; border-radius: 12px; padding: 10px 12px; text-align: left; font-size: 14px; font-weight: 600; }
-QPushButton#nav:hover { background: rgba(255,255,255,0.07); }
-QPushButton#nav:checked { background: qlineargradient(x1:0,y1:0,x2:1,y2:0, stop:0 rgba(8,145,178,0.55), stop:1 rgba(124,58,237,0.55));
-    border-color: rgba(255,255,255,0.25); color: white; }
-QPushButton#card { background: rgba(255,255,255,0.055); border: 1px solid rgba(255,255,255,0.13); border-radius: 16px; padding: 14px 10px; font-size: 13.5px; font-weight: 600; }
-QPushButton#card:hover { background: rgba(255,255,255,0.105); border-color: rgba(103,232,249,0.65); }
-QFrame#banner { background: qlineargradient(x1:0,y1:0,x2:1,y2:1, stop:0 rgba(14,116,144,0.85), stop:0.55 rgba(29,78,216,0.75), stop:1 rgba(124,58,237,0.85));
-    border: 1px solid rgba(255,255,255,0.22); border-radius: 18px; }
-QLabel#bannerTitle { color: white; font-size: 20px; font-weight: 800; }
-QLabel#bannerSub { color: #e0f2fe; font-size: 12.5px; }
-QGroupBox { background: rgba(255,255,255,0.035); border: 1px solid rgba(255,255,255,0.10); border-radius: 16px; margin-top: 12px; padding-top: 14px; font-weight: 700; color: #dbe6ff; }
-QGroupBox::title { subcontrol-origin: margin; left: 14px; padding: 0 6px; }
-QLineEdit, QComboBox, QSpinBox, QTextEdit { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.15); border-radius: 9px; padding: 7px 10px; color: #eef2ff; }
-QLineEdit:focus, QComboBox:focus, QSpinBox:focus { border-color: rgba(103,232,249,0.75); background: rgba(255,255,255,0.09); }
-QLineEdit#hotkeyCapturing { border-color: #fbbf24; background: rgba(251,191,36,0.12); color: #fde68a; }
-QListWidget { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.10); border-radius: 14px; }
-QToolButton { background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.14); border-radius: 9px; padding: 6px 10px; color: #eef2ff; }
-QToolButton:checked { background: rgba(8,145,178,0.55); border-color: rgba(103,232,249,0.7); }
+/* ===== Professional: graphite phẳng, 1 màu nhấn, viền mảnh, không trang trí thừa ===== */
+QMainWindow, QDialog { background: #0E1013; color: #E7EAEE; font-family: 'Segoe UI'; font-size: 13px; }
+QFrame#sidebar { background: #12151A; border-right: 1px solid #232830; }
+QLabel#logo { font-size: 17px; font-weight: 700; color: #FFFFFF; }
+QLabel#pageTitle { font-size: 18px; font-weight: 600; color: #FFFFFF; }
+QLabel#subtitle { color: #8A94A3; font-size: 12px; }
+QLabel#version { color: #5C6672; font-size: 11px; }
+QLabel#chip { background: #171C22; color: #A7B4C4; border: 1px solid #262D36; border-radius: 8px; padding: 5px 9px; font-size: 11.5px; }
+QFrame#divider { background: #232830; max-height: 1px; }
+QPushButton { background: #1A1F26; color: #E7EAEE; border: 1px solid #2A313B; border-radius: 8px; padding: 7px 14px; }
+QPushButton:hover { background: #21272F; border-color: #3A434F; }
+QPushButton:pressed { background: #171C22; }
+QPushButton#primaryBtn { background: #0284C7; color: #FFFFFF; font-weight: 600; border: 1px solid #0284C7; padding: 8px 18px; }
+QPushButton#primaryBtn:hover { background: #0369A1; border-color: #0369A1; }
+QPushButton#nav { background: transparent; border: 1px solid transparent; border-radius: 8px; padding: 9px 12px; text-align: left; font-size: 13.5px; font-weight: 500; color: #B9C2CE; }
+QPushButton#nav:hover { background: #1A1F26; color: #E7EAEE; }
+QPushButton#nav:checked { background: rgba(2,132,199,0.16); border-color: rgba(56,168,240,0.35); color: #FFFFFF; }
+QPushButton#card { background: #15181D; border: 1px solid #242A32; border-radius: 10px; padding: 12px 10px; font-size: 13px; font-weight: 500; color: #DDE3EA; }
+QPushButton#card:hover { background: #1A1F26; border-color: #38A8F0; color: #FFFFFF; }
+QGroupBox { background: transparent; border: 1px solid #232830; border-radius: 10px; margin-top: 14px; padding-top: 12px; font-weight: 600; color: #C6CEDA; }
+QGroupBox::title { subcontrol-origin: margin; left: 12px; padding: 0 6px; background: #0E1013; }
+QLineEdit, QComboBox, QSpinBox, QTextEdit { background: #15181D; border: 1px solid #2A313B; border-radius: 8px; padding: 7px 10px; color: #E7EAEE; }
+QLineEdit:focus, QComboBox:focus, QSpinBox:focus { border-color: #38A8F0; }
+QLineEdit#hotkeyCapturing { border-color: #38A8F0; background: rgba(2,132,199,0.12); color: #BFE3FA; }
+QListWidget { background: #12151A; border: 1px solid #232830; border-radius: 10px; }
+QToolButton { background: #1A1F26; border: 1px solid #2A313B; border-radius: 8px; padding: 6px 11px; color: #DDE3EA; }
+QToolButton:hover { border-color: #3A434F; }
+QToolButton:checked { background: rgba(2,132,199,0.22); border-color: #38A8F0; color: #FFFFFF; }
 QScrollArea { border: none; background: transparent; }
 QScrollArea > QWidget > QWidget { background: transparent; }
-QLabel#status { color: #8be0ff; font-size: 12px; }
+QLabel#status { color: #8A94A3; font-size: 12px; }
 QCheckBox { spacing: 8px; }
 """
 
@@ -89,16 +86,6 @@ def _png_bytes(img: Image.Image) -> bytes:
     buf = io.BytesIO()
     img.save(buf, "PNG")
     return buf.getvalue()
-
-
-def glass_shadow(widget, blur: int = 26, dy: int = 7, alpha: int = 110):
-    """Bóng đổ mềm dưới panel — tạo cảm giác lớp kính nổi trên nền (Liquid Glass)."""
-    eff = QGraphicsDropShadowEffect(widget)
-    eff.setBlurRadius(blur)
-    eff.setOffset(0, dy)
-    eff.setColor(QColor(0, 0, 0, alpha))
-    widget.setGraphicsEffect(eff)
-    return widget
 
 
 _QT_KEY_NAMES = {
@@ -159,7 +146,7 @@ class HotkeyEdit(QLineEdit):
         self._old = self.combo
         self.setObjectName("hotkeyCapturing")
         self.setStyleSheet("")  # ép Qt vẽ lại theo objectName mới
-        self.setText("⌨ Đang chờ phím… (giữ Ctrl/Alt/Shift rồi nhấn phím)")
+        self.setText("Đang chờ phím…")
 
     def _end(self):
         self._capturing = False
@@ -192,7 +179,7 @@ class HotkeyEdit(QLineEdit):
             return
         name = _qt_key_name(key)
         if name is None:
-            self.setText("Phím này chưa hỗ trợ — thử phím chữ, số hoặc F1–F12")
+            self.setText("Phím không được hỗ trợ")
             return
         combo = build_combo(mods, name)
         err = validate_combo(combo)
@@ -214,7 +201,7 @@ class SettingsPanel(QWidget):
         lay = QVBoxLayout(self)
         lay.setSpacing(10)
 
-        g1 = QGroupBox("🔑 GitHub — nơi ảnh được đẩy lên")
+        g1 = QGroupBox("GitHub")
         f = QGridLayout(g1)
         f.addWidget(QLabel("Token (Personal Access Token):"), 0, 0)
         self.e_token = QLineEdit(gh.token)
@@ -224,63 +211,58 @@ class SettingsPanel(QWidget):
         b_show.setCheckable(True)
         b_show.toggled.connect(lambda on: self.e_token.setEchoMode(QLineEdit.Normal if on else QLineEdit.Password))
         f.addWidget(b_show, 0, 2)
-        f.addWidget(QLabel("Chủ repo (trống = tự lấy từ token):"), 1, 0)
+        f.addWidget(QLabel("Tài khoản (để trống = theo token):"), 1, 0)
         self.e_owner = QLineEdit(gh.owner); f.addWidget(self.e_owner, 1, 1)
-        f.addWidget(QLabel("Repo chứa ảnh:"), 2, 0)
+        f.addWidget(QLabel("Kho chứa ảnh:"), 2, 0)
         self.e_repo = QLineEdit(gh.repo); f.addWidget(self.e_repo, 2, 1)
         f.addWidget(QLabel("Nhánh:"), 3, 0)
         self.e_branch = QLineEdit(gh.branch); f.addWidget(self.e_branch, 3, 1)
         f.addWidget(QLabel("Mẫu thư mục:"), 4, 0)
         self.e_folder = QLineEdit(gh.folder_pattern); f.addWidget(self.e_folder, 4, 1)
-        f.addWidget(QLabel("Kiểu link trả về:"), 5, 0)
+        f.addWidget(QLabel("Kiểu liên kết:"), 5, 0)
         self.c_link = QComboBox(); self.c_link.addItems(["raw", "cdn"]); self.c_link.setCurrentText(gh.link_type)
         f.addWidget(self.c_link, 5, 1)
-        f.addWidget(QLabel("Định dạng khi copy:"), 6, 0)
+        f.addWidget(QLabel("Định dạng sao chép:"), 6, 0)
         self.c_fmt = QComboBox(); self.c_fmt.addItems(["link", "markdown", "html"]); self.c_fmt.setCurrentText(gh.copy_format)
         f.addWidget(self.c_fmt, 6, 1)
         row = QHBoxLayout()
-        b_test = QPushButton("🔌 Kiểm tra kết nối"); b_test.clicked.connect(self._test)
-        b_repo = QPushButton("📦 Tạo repo chứa ảnh"); b_repo.clicked.connect(self._create_repo)
+        b_test = QPushButton("Kiểm tra kết nối"); b_test.clicked.connect(self._test)
+        b_repo = QPushButton("Tạo kho chứa ảnh"); b_repo.clicked.connect(self._create_repo)
         row.addWidget(b_test); row.addWidget(b_repo); row.addStretch()
         f.addLayout(row, 7, 0, 1, 3)
         lay.addWidget(g1)
 
-        g2 = QGroupBox("📸 Hành vi khi chụp")
+        g2 = QGroupBox("Chụp")
         v = QVBoxLayout(g2)
-        self.chk_smart = QCheckBox("Nhận ô thông minh: di chuột tự bắt ô/cửa sổ có sẵn, click là chụp đúng ô")
+        self.chk_smart = QCheckBox("Nhận ô thông minh khi chụp vùng")
         self.chk_smart.setChecked(config.smart_snap)
-        self.chk_round = QCheckBox("Bo góc tròn cho ảnh chụp theo ô/cửa sổ (khớp Windows 11)")
+        self.chk_round = QCheckBox("Bo góc tròn cho ảnh chụp theo ô/cửa sổ")
         self.chk_round.setChecked(config.rounded_corners)
         rowr = QHBoxLayout()
         rowr.addWidget(QLabel("Bán kính bo góc:"))
         self.s_radius = QSpinBox(); self.s_radius.setRange(0, 30); self.s_radius.setValue(config.corner_radius)
         rowr.addWidget(self.s_radius); rowr.addStretch()
-        self.chk_copy = QCheckBox("Tự copy link sau khi upload"); self.chk_copy.setChecked(gh.auto_copy)
-        self.chk_create = QCheckBox("Tự tạo repo chứa ảnh nếu chưa có"); self.chk_create.setChecked(gh.auto_create_repo)
-        self.chk_local = QCheckBox("Luôn lưu 1 bản trong máy (Pictures/GitShot)"); self.chk_local.setChecked(config.save_local_copy)
+        self.chk_copy = QCheckBox("Tự động sao chép liên kết sau khi tải lên"); self.chk_copy.setChecked(gh.auto_copy)
+        self.chk_create = QCheckBox("Tự tạo kho chứa ảnh nếu chưa có"); self.chk_create.setChecked(gh.auto_create_repo)
+        self.chk_local = QCheckBox("Lưu bản sao trong thư mục Pictures/GitShot"); self.chk_local.setChecked(config.save_local_copy)
         v.addWidget(self.chk_smart); v.addWidget(self.chk_round); v.addLayout(rowr)
         v.addWidget(self.chk_copy); v.addWidget(self.chk_create); v.addWidget(self.chk_local)
         lay.addWidget(g2)
 
-        g3 = QGroupBox("⌨ Phím tắt toàn cục — tự thiết lập")
+        g3 = QGroupBox("Phím tắt")
         f3 = QGridLayout(g3)
-        note = QLabel("Bấm vào ô rồi nhấn tổ hợp phím anh muốn (ví dụ Ctrl+Shift+A, Alt+F9…). "
-                      "Bấm ✕ để bỏ phím tắt của hành động đó. Lưu xong áp dụng ngay, không cần mở lại app.")
-        note.setWordWrap(True)
-        note.setObjectName("subtitle")
-        f3.addWidget(note, 0, 0, 1, 3)
         self.hk_edits: dict[str, HotkeyEdit] = {}
         hk_actions = [
-            ("region", "✂️ Chụp vùng thông minh"),
-            ("fullscreen", "🖥 Toàn màn hình"),
-            ("window", "🪟 Cửa sổ hiện tại"),
-            ("scrolling", "📜 Chụp cuộn"),
-            ("record", "🎬 Quay MP4"),
-            ("gif", "🖼 Quay GIF"),
-            ("last_region", "🔁 Chụp lại vùng cũ"),
-            ("color_picker", "🎨 Lấy mã màu"),
+            ("region", "Chụp vùng"),
+            ("fullscreen", "Toàn màn hình"),
+            ("window", "Cửa sổ hiện tại"),
+            ("scrolling", "Chụp cuộn"),
+            ("record", "Quay MP4"),
+            ("gif", "Quay GIF"),
+            ("last_region", "Chụp lại vùng cũ"),
+            ("color_picker", "Lấy mã màu"),
         ]
-        for i, (action, label) in enumerate(hk_actions, start=1):
+        for i, (action, label) in enumerate(hk_actions, start=0):
             f3.addWidget(QLabel(label), i, 0)
             edit = HotkeyEdit(getattr(config.hotkeys, action, ""))
             self.hk_edits[action] = edit
@@ -291,7 +273,7 @@ class SettingsPanel(QWidget):
             f3.addWidget(b_clear, i, 2)
         lay.addWidget(g3)
 
-        b_save = QPushButton("💾 Lưu cài đặt")
+        b_save = QPushButton("Lưu cài đặt")
         b_save.setObjectName("primaryBtn")
         b_save.clicked.connect(self._save)
         lay.addWidget(b_save)
@@ -343,7 +325,7 @@ class SettingsPanel(QWidget):
             up = self._uploader()
             owner = self.e_owner.text().strip() or up.whoami()
             up.ensure_repo(owner, self.e_repo.text().strip() or "gitshot-uploads")
-            QMessageBox.information(self, "Xong", f"Repo {owner}/{self.e_repo.text().strip()} đã sẵn sàng.")
+            QMessageBox.information(self, "Hoàn tất", f"Kho {owner}/{self.e_repo.text().strip()} đã sẵn sàng.")
         except Exception as e:
             QMessageBox.critical(self, "Lỗi", str(e))
 
@@ -359,7 +341,7 @@ class SettingsPanel(QWidget):
         self._apply(self.config)
         self.config.save()
         self.saved.emit()
-        QMessageBox.information(self, "Đã lưu", "Cài đặt đã lưu — phím tắt mới áp dụng ngay.")
+        QMessageBox.information(self, "Cài đặt", "Đã lưu. Phím tắt mới có hiệu lực ngay.")
 
 
 class RecordControl(QWidget):
@@ -368,9 +350,9 @@ class RecordControl(QWidget):
     def __init__(self):
         super().__init__(None, Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool)
         lay = QHBoxLayout(self)
-        self.label = QLabel("🔴 Đang quay… 00:00")
+        self.label = QLabel("Đang quay — 00:00")
         lay.addWidget(self.label)
-        b = QPushButton("⏹ Dừng & lưu")
+        b = QPushButton("Dừng và lưu")
         b.setObjectName("primaryBtn")
         b.clicked.connect(self.stop_clicked.emit)
         lay.addWidget(b)
@@ -382,7 +364,7 @@ class RecordControl(QWidget):
 
     def _tick(self):
         self._sec += 1
-        self.label.setText(f"🔴 Đang quay… {self._sec // 60:02d}:{self._sec % 60:02d}")
+        self.label.setText(f"Đang quay — {self._sec // 60:02d}:{self._sec % 60:02d}")
 
 
 class GitShotApp(QObject):
@@ -452,7 +434,7 @@ class GitShotApp(QObject):
         editor.uploaded.connect(lambda r, fn=filename: self._on_uploaded(r, fn))
         editor.show()
         self._editors.append(editor)
-        self.status(f"Đã chụp {filename} — ấn Enter trong cửa sổ sửa để lên GitHub")
+        self.status(f"Đã chụp: {filename}")
 
     def _on_uploaded(self, result, filename: str):
         url = result.link(self.config.github.link_type)
@@ -461,8 +443,8 @@ class GitShotApp(QObject):
                 self.history.mark_uploaded(it.local_path, url)
                 break
         self.window.refresh_history()
-        self._tray_msg("GitShot", "Đã upload xong — link đã copy vào clipboard.")
-        self.status(f"☁ Đã lên GitHub: {url}")
+        self._tray_msg("GitShot", "Đã tải lên. Liên kết đã được sao chép.")
+        self.status(f"Đã tải lên GitHub: {url}")
 
     def capture_fullscreen(self):
         was_visible = self.window.isVisible()
@@ -490,8 +472,8 @@ class GitShotApp(QObject):
         if lr and len(lr) == 4:
             self._after_shot(grab_region(tuple(lr)))
         else:
-            QMessageBox.information(self.window, "Chưa có vùng cũ",
-                                    "Anh chưa chụp vùng nào. Hãy chụp vùng 1 lần trước.")
+            QMessageBox.information(self.window, "Chụp lại vùng cũ",
+                                    "Chưa có vùng chụp trước đó.")
 
     def capture_scrolling(self):
         def go(bbox, snapped):
@@ -501,16 +483,16 @@ class GitShotApp(QObject):
         self._select_region(go)
 
     def capture_delayed(self, seconds: int = 3):
-        self.status(f"⏳ Sẽ mở chụp vùng sau {seconds} giây…")
+        self.status(f"Chụp vùng sau {seconds} giây")
         QTimer.singleShot(seconds * 1000, self.capture_region)
 
     def capture_auto(self):
         interval, ok = QInputDialog.getInt(self.window, "Chụp tự động",
-                                           "Mỗi bao nhiêu giây chụp 1 tấm?", 10, 2, 3600)
+                                           "Chu kỳ chụp (giây):", 10, 2, 3600)
         if not ok:
             return
         count, ok = QInputDialog.getInt(self.window, "Chụp tự động",
-                                        "Chụp bao nhiêu tấm? (toàn màn hình, tự upload)", 5, 1, 200)
+                                        "Số ảnh (toàn màn hình, tự động tải lên):", 5, 1, 200)
         if not ok:
             return
         self._auto["left"] = count
@@ -520,12 +502,12 @@ class GitShotApp(QObject):
         timer.timeout.connect(self._auto_tick)
         self._auto["timer"] = timer
         timer.start(interval * 1000)
-        self.status(f"⏱ Chụp tự động: {count} tấm, mỗi {interval} giây, tự upload…")
+        self.status(f"Chụp tự động: {count} ảnh, chu kỳ {interval} giây")
 
     def _auto_tick(self):
         if self._auto["left"] <= 0:
             self._auto["timer"].stop()
-            self.status("⏱ Chụp tự động: xong.")
+            self.status("Chụp tự động: hoàn tất.")
             return
         self._auto["left"] -= 1
         img = grab_fullscreen()
@@ -539,9 +521,9 @@ class GitShotApp(QObject):
             self.history.mark_uploaded(str(path), url)
             if self.config.github.auto_copy:
                 QApplication.clipboard().setText(format_link(self.config.github.copy_format, url))
-            self.status(f"⏱ Đã tự chụp + upload: {url}")
+            self.status(f"Đã chụp và tải lên: {url}")
         except Exception as e:
-            self.status(f"⏱ Tự chụp xong nhưng upload lỗi: {e}")
+            self.status(f"Chụp tự động: lỗi tải lên: {e}")
         self.window.refresh_history()
 
     def capture_from_clipboard(self):
@@ -549,7 +531,7 @@ class GitShotApp(QObject):
         img = cb.image()
         if img.isNull():
             QMessageBox.information(self.window, "Clipboard trống",
-                                    "Clipboard chưa có ảnh. Hãy copy 1 ảnh rồi thử lại.")
+                                    "Clipboard hiện không chứa ảnh.")
             return
         buf = _qt_image_to_pil(img)
         self._after_shot(buf)
@@ -620,8 +602,8 @@ class GitShotApp(QObject):
         self.window.refresh_history()
         box = QMessageBox(self.window)
         box.setWindowTitle("Đã quay xong")
-        box.setText(f"Đã lưu: {path}\n\nĐẩy lên GitHub luôn không? (file {len(data)//1024} KB)")
-        b_up = box.addButton("⬆ Upload GitHub", QMessageBox.AcceptRole)
+        box.setText(f"Đã lưu: {path}\n\nTải lên GitHub? ({len(data)//1024} KB)")
+        b_up = box.addButton("Tải lên GitHub", QMessageBox.AcceptRole)
         box.addButton("Để sau", QMessageBox.RejectRole)
         box.exec()
         if box.clickedButton() == b_up:
@@ -631,7 +613,7 @@ class GitShotApp(QObject):
                 QApplication.clipboard().setText(format_link(self.config.github.copy_format, url))
                 self.history.mark_uploaded(str(path), url)
                 self.window.refresh_history()
-                QMessageBox.information(self.window, "Xong 🎉", f"Link video (đã copy):\n{url}")
+                QMessageBox.information(self.window, "Hoàn tất", f"Liên kết video (đã sao chép):\n{url}")
             except Exception as e:
                 QMessageBox.critical(self.window, "Upload lỗi", str(e))
 
@@ -644,7 +626,7 @@ class GitShotApp(QObject):
             self._overlay = overlay
             overlay.picked.connect(lambda hexcode, rgb: (
                 QApplication.clipboard().setText(hexcode),
-                self.status(f"🎨 Đã copy mã màu {hexcode} (RGB {rgb[0]}, {rgb[1]}, {rgb[2]})"),
+                self.status(f"Đã sao chép mã màu {hexcode} (RGB {rgb[0]}, {rgb[1]}, {rgb[2]})"),
                 self.window.show(),
             ))
             overlay.cancelled.connect(lambda: self.window.show())
@@ -748,15 +730,15 @@ class GitShotApp(QObject):
         self.tray = QSystemTrayIcon(ic, self.window)
         menu = QMenu()
         for text, fn in [
-            (f"📸 Chụp vùng thông minh ({prettify(self.config.hotkeys.region)})", self.capture_region),
-            ("🖥 Toàn màn hình", self.capture_fullscreen),
-            ("🪟 Cửa sổ hiện tại", self.capture_window),
-            ("🔁 Chụp lại vùng cũ", self.capture_last_region),
-            ("📜 Chụp cuộn", self.capture_scrolling),
-            ("🎬 Quay MP4", lambda: self.record_screen("mp4")),
-            ("🖼 Quay GIF", lambda: self.record_screen("gif")),
-            ("🎨 Lấy mã màu", self.tool_color_picker),
-            ("📏 Thước đo", self.tool_ruler),
+            (f"Chụp vùng ({prettify(self.config.hotkeys.region)})", self.capture_region),
+            ("Toàn màn hình", self.capture_fullscreen),
+            ("Cửa sổ hiện tại", self.capture_window),
+            ("Chụp lại vùng cũ", self.capture_last_region),
+            ("Chụp cuộn", self.capture_scrolling),
+            ("Quay MP4", lambda: self.record_screen("mp4")),
+            ("Quay GIF", lambda: self.record_screen("gif")),
+            ("Lấy mã màu", self.tool_color_picker),
+            ("Thước đo", self.tool_ruler),
         ]:
             a = QAction(text, menu); a.triggered.connect(fn); menu.addAction(a)
         menu.addSeparator()
@@ -826,7 +808,7 @@ class _TextResultDialog(QMessageBox):
         super().__init__(parent)
         self.setWindowTitle(title)
         self.setText(text[:4000])
-        b = QPushButton("📋 Copy tất cả")
+        b = QPushButton("Sao chép tất cả")
         self.addButton(b, QMessageBox.ActionRole)
         b.clicked.connect(lambda: QApplication.clipboard().setText(text))
         self.addButton(QPushButton("Đóng"), QMessageBox.AcceptRole)
@@ -836,7 +818,7 @@ class MainWindow(QMainWindow):
     def __init__(self, app: GitShotApp):
         super().__init__()
         self.app_ref = app
-        self.setWindowTitle(f"GitShot {__version__} — Chụp • Enter • Lên GitHub")
+        self.setWindowTitle("GitShot")
         self.resize(1020, 680)
         ic = icon_path()
         if ic.exists():
@@ -853,16 +835,21 @@ class MainWindow(QMainWindow):
         sidebar.setFixedWidth(208)
         sb = QVBoxLayout(sidebar)
         sb.setContentsMargins(14, 16, 14, 14)
-        logo = QLabel("📸 GitShot")
+        logo_row = QHBoxLayout()
+        ic = icon_path()
+        if ic.exists():
+            mark = QLabel()
+            mark.setPixmap(QPixmap(str(ic)).scaled(26, 26, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+            logo_row.addWidget(mark)
+        logo = QLabel("GitShot")
         logo.setObjectName("logo")
-        sb.addWidget(logo)
-        tag = QLabel("Chụp màn hình • Lên GitHub")
-        tag.setObjectName("subtitle")
-        sb.addWidget(tag)
-        sb.addSpacing(16)
+        logo_row.addWidget(logo)
+        logo_row.addStretch()
+        sb.addLayout(logo_row)
+        sb.addSpacing(18)
         self._nav_buttons = {}
-        for key, label in [("home", "🏠  Trang chủ"), ("tools", "🧰  Công cụ"),
-                           ("history", "🕘  Lịch sử"), ("settings", "⚙  Cài đặt")]:
+        for key, label in [("home", "Trang chủ"), ("tools", "Công cụ"),
+                           ("history", "Lịch sử"), ("settings", "Cài đặt")]:
             b = QPushButton(label)
             b.setObjectName("nav")
             b.setCheckable(True)
@@ -875,7 +862,7 @@ class MainWindow(QMainWindow):
         self.chip.setWordWrap(True)
         sb.addWidget(self.chip)
         ver = QLabel(f"Phiên bản {__version__}")
-        ver.setObjectName("subtitle")
+        ver.setObjectName("version")
         sb.addWidget(ver)
         root.addWidget(sidebar)
 
@@ -885,8 +872,7 @@ class MainWindow(QMainWindow):
         rv.setContentsMargins(16, 14, 16, 10)
         self.stack = QStackedWidget()
         rv.addWidget(self.stack, 1)
-        self.status_label = QLabel(
-            f"Sẵn sàng — {prettify(app.config.hotkeys.region)} để chụp vùng thông minh.")
+        self.status_label = QLabel("Sẵn sàng")
         self.status_label.setObjectName("status")
         self.status_label.setWordWrap(True)
         rv.addWidget(self.status_label)
@@ -915,7 +901,6 @@ class MainWindow(QMainWindow):
             b.setObjectName("card")
             b.setMinimumHeight(84)
             b.clicked.connect(fn)
-            glass_shadow(b, blur=18, dy=4, alpha=75)
             if action:
                 self._hk_cards[action] = (b, label, fallback)
             grid.addWidget(b, i // cols, i % cols)
@@ -929,39 +914,44 @@ class MainWindow(QMainWindow):
             detail = prettify(combo) if combo else fallback
             b.setText(f"{base}\n{detail}" if detail else base)
 
+    def _page_header(self, title: str, app=None) -> QHBoxLayout:
+        row = QHBoxLayout()
+        t = QLabel(title)
+        t.setObjectName("pageTitle")
+        row.addWidget(t)
+        row.addStretch()
+        if app is not None:
+            b = QPushButton("Chụp vùng")
+            b.setObjectName("primaryBtn")
+            b.clicked.connect(app.capture_region)
+            row.addWidget(b)
+        return row
+
     def _build_home_page(self, app):
         page = QWidget()
         lay = QVBoxLayout(page)
-        banner = QFrame()
-        banner.setObjectName("banner")
-        glass_shadow(banner, blur=30, dy=8, alpha=120)
-        bv = QVBoxLayout(banner)
-        t = QLabel("Chụp → Enter → Có link GitHub")
-        t.setObjectName("bannerTitle")
-        s = QLabel("Di chuột, app tự bắt đúng ô/cửa sổ trên màn hình — click là chụp, ảnh bo góc như Windows 11.")
-        s.setObjectName("bannerSub")
-        s.setWordWrap(True)
-        bv.addWidget(t); bv.addWidget(s)
-        lay.addWidget(banner)
+        lay.addLayout(self._page_header("Trang chủ", app))
+        div = QFrame(); div.setObjectName("divider")
+        lay.addWidget(div)
 
-        g1 = QGroupBox("📸  Chụp ảnh")
+        g1 = QGroupBox("Chụp ảnh")
         g1.setLayout(self._card_grid([
-            ("✂️\nChụp vùng", app.capture_region, "region", "thông minh"),
-            ("🖥\nToàn màn hình", app.capture_fullscreen, "fullscreen", ""),
-            ("🪟\nCửa sổ hiện tại", app.capture_window, "window", ""),
-            ("🔁\nChụp lại vùng cũ", app.capture_last_region, "last_region", ""),
-            ("📜\nChụp cuộn", app.capture_scrolling, "scrolling", "trang dài"),
-            ("⏳\nChụp trễ\n3 giây", lambda: app.capture_delayed(3)),
-            ("⏱\nChụp tự động\ntheo giờ", app.capture_auto),
-            ("📋\nẢnh từ\nclipboard", app.capture_from_clipboard),
-            ("🖼\nMở ảnh\ntừ máy", app.open_image_file),
+            ("Chụp vùng", app.capture_region, "region", ""),
+            ("Toàn màn hình", app.capture_fullscreen, "fullscreen", ""),
+            ("Cửa sổ hiện tại", app.capture_window, "window", ""),
+            ("Chụp lại vùng cũ", app.capture_last_region, "last_region", ""),
+            ("Chụp cuộn", app.capture_scrolling, "scrolling", ""),
+            ("Chụp trễ 3 giây", lambda: app.capture_delayed(3)),
+            ("Chụp tự động", app.capture_auto),
+            ("Ảnh từ clipboard", app.capture_from_clipboard),
+            ("Mở ảnh", app.open_image_file),
         ], cols=3))
         lay.addWidget(g1)
 
-        g2 = QGroupBox("🎬  Quay màn hình")
+        g2 = QGroupBox("Quay màn hình")
         g2.setLayout(self._card_grid([
-            ("🎬\nQuay MP4", lambda: app.record_screen("mp4"), "record", ""),
-            ("🖼\nQuay GIF", lambda: app.record_screen("gif"), "gif", ""),
+            ("Quay MP4", lambda: app.record_screen("mp4"), "record", ""),
+            ("Quay GIF", lambda: app.record_screen("gif"), "gif", ""),
         ], cols=3))
         lay.addWidget(g2)
         lay.addStretch()
@@ -971,31 +961,27 @@ class MainWindow(QMainWindow):
     def _build_tools_page(self, app):
         page = QWidget()
         lay = QVBoxLayout(page)
-        title = QLabel("🧰 Công cụ tiện ích")
-        title.setObjectName("logo")
-        lay.addWidget(title)
-        sub = QLabel("Các tiện ích đi kèm, không cần mở phần mềm khác.")
-        sub.setObjectName("subtitle")
-        lay.addWidget(sub)
+        lay.addLayout(self._page_header("Công cụ"))
+        div = QFrame(); div.setObjectName("divider")
+        lay.addWidget(div)
         grid = QGridLayout()
         grid.setSpacing(10)
         tools = [
-            ("🎨\nLấy mã màu\ntrên màn hình", app.tool_color_picker),
-            ("📏\nThước đo\nmàn hình (px)", app.tool_ruler),
-            ("🔤\nOCR\ntrích chữ từ ảnh", app.tool_ocr),
-            ("🧩\nGhép nhiều ảnh\nthành 1", app.tool_combine),
-            ("✂️\nTách ảnh\ntheo lưới", app.tool_split),
-            ("🔍\nTạo ảnh\nthu nhỏ", app.tool_thumbnail),
-            ("🔐\nKiểm tra\nhash file", app.tool_hash),
-            ("📁\nMở thư mục\nảnh đã lưu", app.tool_open_folder),
-            ("⚙\nCài đặt\nGitHub + chụp", lambda: self.show_page("settings")),
+            ("Lấy mã màu", app.tool_color_picker),
+            ("Thước đo (px)", app.tool_ruler),
+            ("OCR — trích chữ từ ảnh", app.tool_ocr),
+            ("Ghép nhiều ảnh", app.tool_combine),
+            ("Tách ảnh theo lưới", app.tool_split),
+            ("Tạo ảnh thu nhỏ", app.tool_thumbnail),
+            ("Kiểm tra hash file", app.tool_hash),
+            ("Mở thư mục ảnh", app.tool_open_folder),
+            ("Cài đặt", lambda: self.show_page("settings")),
         ]
         for i, (label, fn) in enumerate(tools):
             b = QPushButton(label)
             b.setObjectName("card")
             b.setMinimumHeight(92)
             b.clicked.connect(fn)
-            glass_shadow(b, blur=18, dy=4, alpha=75)
             grid.addWidget(b, i // 3, i % 3)
         lay.addLayout(grid)
         lay.addStretch()
@@ -1005,16 +991,11 @@ class MainWindow(QMainWindow):
     def _build_history_page(self):
         page = QWidget()
         lay = QVBoxLayout(page)
-        row = QHBoxLayout()
-        t = QLabel("🕘 Lịch sử chụp / upload")
-        t.setObjectName("logo")
-        row.addWidget(t)
-        row.addStretch()
-        hint = QLabel("Nhấp đúp: copy lại link (đã upload) hoặc mở file")
-        hint.setObjectName("subtitle")
-        row.addWidget(hint)
-        lay.addLayout(row)
+        lay.addLayout(self._page_header("Lịch sử"))
+        div = QFrame(); div.setObjectName("divider")
+        lay.addWidget(div)
         self.list = QListWidget()
+        self.list.setToolTip("Nhấp đúp để sao chép lại liên kết hoặc mở tệp")
         self.list.setViewMode(QListWidget.IconMode)
         self.list.setIconSize(QSize(168, 106))
         self.list.setGridSize(QSize(196, 168))
@@ -1027,6 +1008,9 @@ class MainWindow(QMainWindow):
     def _build_settings_page(self, app):
         page = QWidget()
         lay = QVBoxLayout(page)
+        lay.addLayout(self._page_header("Cài đặt"))
+        div = QFrame(); div.setObjectName("divider")
+        lay.addWidget(div)
         from PySide6.QtWidgets import QScrollArea
         panel = SettingsPanel(app.config)
         panel.saved.connect(self._refresh_chip)
@@ -1057,9 +1041,9 @@ class MainWindow(QMainWindow):
         gh = self.app_ref.config.github
         if gh.token:
             owner = gh.owner or "(tự lấy từ token)"
-            self.chip.setText(f"☁ GitHub: {owner}/{gh.repo}")
+            self.chip.setText(f"GitHub: {owner}/{gh.repo}")
         else:
-            self.chip.setText("⚠ Chưa nhập token GitHub — vào Cài đặt")
+            self.chip.setText("GitHub: chưa cấu hình")
 
     def refresh_history(self):
         self.list.clear()
@@ -1070,7 +1054,7 @@ class MainWindow(QMainWindow):
                 pm = QPixmap(str(p))
                 if not pm.isNull():
                     icon = QIcon(pm.scaled(168, 106, Qt.KeepAspectRatio, Qt.SmoothTransformation))
-            mark = "☁" if it.uploaded_url else "💾"
+            mark = "Đã tải lên" if it.uploaded_url else "Đã lưu"
             item = QListWidgetItem(icon, f"{mark} {it.filename}\n{it.created_at.replace('T', ' ')}")
             item.setData(Qt.UserRole, it)
             item.setToolTip(it.uploaded_url or it.local_path)
@@ -1081,7 +1065,7 @@ class MainWindow(QMainWindow):
         if it.uploaded_url:
             QApplication.clipboard().setText(
                 format_link(self.app_ref.config.github.copy_format, it.uploaded_url))
-            self.set_status("📋 Đã copy lại link ảnh từ lịch sử.")
+            self.set_status("Đã sao chép liên kết.")
         elif Path(it.local_path).exists():
             if sys.platform == "win32":
                 os.startfile(it.local_path)  # type: ignore[attr-defined]

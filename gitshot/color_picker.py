@@ -76,8 +76,8 @@ class ColorPickerOverlay(QWidget):
             p.drawText(bx + 46, by + 28, hexcode)
             p.setPen(QColor("#94a3b8"))
             p.setFont(QFont("Segoe UI", 10))
-            p.drawText(bx + 10, by + 56, f"RGB {rgb[0]}, {rgb[1]}, {rgb[2]} • click để copy")
+            p.drawText(bx + 10, by + 56, f"RGB {rgb[0]}, {rgb[1]}, {rgb[2]} • Nhấp để sao chép")
         else:
             p.setPen(QColor("#f8fafc"))
-            p.drawText(24, 40, "🎨 Di chuột tới điểm cần lấy màu, click để copy mã HEX • Esc hủy")
+            p.drawText(24, 40, "Di chuột để xem màu • Nhấp để sao chép mã HEX • Esc: hủy")
         p.end()

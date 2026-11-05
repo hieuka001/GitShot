@@ -22,14 +22,14 @@ from .capture import pixelate
 from .utils import format_link
 
 TOOLS = [
-    ("pen", "✏️ Bút"),
-    ("line", "╱ Đường"),
-    ("arrow", "➜ Mũi tên"),
-    ("rect", "▭ Khung"),
-    ("ellipse", "◯ Elip"),
+    ("pen", "Bút"),
+    ("line", "Đường thẳng"),
+    ("arrow", "Mũi tên"),
+    ("rect", "Khung"),
+    ("ellipse", "Elip"),
     ("text", "T Chữ"),
-    ("step", "① Số bước"),
-    ("blur", "▦ Che mờ"),
+    ("step", "Số bước"),
+    ("blur", "Che mờ"),
 ]
 
 
@@ -206,24 +206,24 @@ class _UploadWorker(QObject):
 class LinkDialog(QDialog):
     def __init__(self, url: str, copy_text: str, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Đã lên GitHub 🎉")
+        self.setWindowTitle("Đã tải lên GitHub")
         self.setMinimumWidth(520)
         lay = QVBoxLayout(self)
-        lay.addWidget(QLabel("Ảnh đã được đẩy lên GitHub. Link của anh:"))
+        lay.addWidget(QLabel("Liên kết ảnh:"))
         field = QLineEdit(url)
         field.setReadOnly(True)
         field.selectAll()
         lay.addWidget(field)
         row = QHBoxLayout()
-        b_copy = QPushButton("📋 Copy link")
+        b_copy = QPushButton("Sao chép liên kết")
         b_copy.clicked.connect(lambda: _copy(copy_text))
-        b_open = QPushButton("🌐 Mở link")
+        b_open = QPushButton("Mở liên kết")
         b_open.clicked.connect(lambda: __import__("webbrowser").open(url))
         b_ok = QPushButton("Xong")
         b_ok.clicked.connect(self.accept)
         row.addWidget(b_copy); row.addWidget(b_open); row.addStretch(); row.addWidget(b_ok)
         lay.addLayout(row)
-        lay.addWidget(QLabel("Link đã tự copy vào clipboard — dán ở đâu cũng được."))
+        lay.addWidget(QLabel("Liên kết đã được sao chép vào clipboard."))
 
 
 def _copy(text: str):
@@ -267,7 +267,7 @@ class EditorWindow(QMainWindow):
             self._tool_buttons[key] = b
             bar.addWidget(b)
         self._tool_buttons["pen"].setChecked(True)
-        b_color = QPushButton("🎨 Màu")
+        b_color = QPushButton("Màu")
         b_color.clicked.connect(self._pick_color)
         bar.addWidget(b_color)
         for w in (2, 3, 5, 8):
@@ -277,7 +277,7 @@ class EditorWindow(QMainWindow):
                 b.setChecked(True)
                 self._width_btn = b
             bar.addWidget(b)
-        b_undo = QPushButton("↩ Hoàn tác")
+        b_undo = QPushButton("Hoàn tác")
         b_undo.clicked.connect(self._do_undo)
         bar.addWidget(b_undo)
         bar.addStretch()
@@ -289,11 +289,11 @@ class EditorWindow(QMainWindow):
         root.addWidget(scroll, 1)
 
         actions = QHBoxLayout()
-        b_copyimg = QPushButton("📋 Copy ảnh  (Ctrl+C)")
+        b_copyimg = QPushButton("Sao chép ảnh (Ctrl+C)")
         b_copyimg.clicked.connect(lambda: _copy_image(self.canvas.pm))
-        b_save = QPushButton("💾 Lưu máy  (Ctrl+S)")
+        b_save = QPushButton("Lưu vào máy (Ctrl+S)")
         b_save.clicked.connect(self._save_local)
-        self.b_upload = QPushButton("⬆  GỬI LÊN GITHUB  (Enter)")
+        self.b_upload = QPushButton("Tải lên GitHub (Enter)")
         self.b_upload.setObjectName("primaryBtn")
         self.b_upload.clicked.connect(self.upload)
         actions.addWidget(b_copyimg)
@@ -338,7 +338,7 @@ class EditorWindow(QMainWindow):
         if self._thread:
             return
         self.b_upload.setEnabled(False)
-        self.b_upload.setText("⏳ Đang đẩy lên GitHub…")
+        self.b_upload.setText("Đang tải lên GitHub…")
         data = pixmap_to_png_bytes(self.canvas.pm)
         fname = self.filename
 
@@ -352,7 +352,7 @@ class EditorWindow(QMainWindow):
 
     def _finish_upload_ui(self):
         self.b_upload.setEnabled(True)
-        self.b_upload.setText("⬆  GỬI LÊN GITHUB  (Enter)")
+        self.b_upload.setText("Tải lên GitHub (Enter)")
         if self._thread:
             self._thread.quit()
             self._thread.wait(500)

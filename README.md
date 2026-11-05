@@ -1,93 +1,77 @@
-# 📸 GitShot — Chụp màn hình, Enter là lên GitHub
+# GitShot
 
-Phần mềm chụp/quay màn hình đầy đủ chức năng cho Windows, với tính năng trung tâm:
-
-> **Chụp xong → ấn `Enter` (hoặc nút "Gửi lên GitHub") → ảnh được push thẳng lên GitHub → link ảnh tự copy vào clipboard.**
+Ứng dụng chụp và quay màn hình cho Windows. Ảnh chụp được tải trực tiếp lên GitHub và trả về liên kết để chia sẻ.
 
 ![icon](assets/icon.png)
 
-| Màn hình chính | Trang Công cụ | Trình sửa ảnh |
-|---|---|---|
-| ![Màn hình chính](assets/screenshot-main.png) | ![Công cụ](assets/screenshot-tools.png) | ![Trình sửa ảnh](assets/screenshot-editor.png) |
+| Trang chủ | Công cụ | Trình sửa ảnh | Cài đặt |
+|---|---|---|---|
+| ![Trang chủ](assets/screenshot-main.png) | ![Công cụ](assets/screenshot-tools.png) | ![Trình sửa ảnh](assets/screenshot-editor.png) | ![Cài đặt](assets/screenshot-settings.png) |
 
-## 🆕 Mới ở v1.1
+## Tải về
 
-- **Chụp vùng THÔNG MINH**: di chuột tới đâu, app tự nhận diện "ô vuông có sẵn" ở đó (cửa sổ, khung, nút, ô nhập…) và tô sáng bo góc theo đúng ô — **click 1 cái là chụp đúng ô đó**, ảnh được **bo góc tròn** như cửa sổ Windows 11. Kéo tay thì 4 cạnh tự **hít** vào cạnh ô gần nhất. Phím `S` bật/tắt chế độ nhận ô.
-- **Giao diện mới**: thanh điều hướng bên trái (Trang chủ / Công cụ / Lịch sử / Cài đặt), banner gradient, thẻ chức năng theo nhóm, chip trạng thái GitHub, **lịch sử dạng lưới thumbnail**.
-- **Thêm cách chụp**: chụp lại vùng cũ, chụp trễ 3 giây, **chụp tự động theo giờ** (tự upload), ảnh từ clipboard, mở ảnh từ máy để sửa/upload.
-- **Trang Công cụ tiện ích**: lấy mã màu trên màn hình (click là copy HEX), thước đo px, OCR trích chữ từ ảnh, ghép nhiều ảnh thành 1, tách ảnh theo lưới, tạo ảnh thu nhỏ, kiểm tra hash file (MD5/SHA256), mở thư mục ảnh.
+Tải `GitShot.exe` tại mục [Releases](../../releases). Tệp chạy trực tiếp, không cần cài đặt.
 
-## 🆕 Mới ở v1.2
+## Cài đặt lần đầu
 
-- **Tự thiết lập tổ hợp phím**: vào Cài đặt → mục phím tắt, bấm vào ô của từng hành động rồi nhấn tổ hợp phím mong muốn (8 hành động: chụp vùng, toàn màn hình, cửa sổ, chụp cuộn, quay MP4, quay GIF, chụp lại vùng cũ, lấy mã màu). App tự chặn khi trùng tổ hợp, lưu xong **áp dụng ngay** và nhãn phím trên các thẻ tự cập nhật theo.
-- **Giao diện Liquid Glass**: nền gradient sâu, các panel/thẻ là lớp kính mờ trong suốt với viền sáng và bóng đổ mềm — sáng, sang và dễ nhìn hơn hẳn.
+Ứng dụng cần một GitHub Personal Access Token để tải ảnh lên. Token chỉ cấu hình một lần.
 
-![Trang Cài đặt với mục tự thiết lập phím tắt](assets/screenshot-settings.png)
+1. Mở github.com → Settings → Developer settings → Personal access tokens → Fine-grained tokens → Generate new token.
+2. Tại Repository access, chọn kho `gitshot-uploads` (ứng dụng tự tạo nếu chưa có).
+3. Tại Permissions → Repository permissions, đặt Contents = Read and write.
+4. Tạo token, sao chép giá trị.
+5. Mở GitShot → Cài đặt → dán token → Kiểm tra kết nối → Lưu cài đặt.
 
-## ⬇ Tải về
+Token dạng Classic với quyền `repo` cũng được chấp nhận.
 
-Vào mục **[Releases](../../releases)** tải `GitShot.exe` — chạy luôn, không cần cài đặt.
-Mỗi lần đẩy tag mới, GitHub Actions tự build bản `.exe` mới tại đây.
+## Sử dụng
 
-## 🚀 Dùng trong 3 phút
-
-### 1. Tạo GitHub Token (làm 1 lần duy nhất)
-
-1. Vào **github.com → ảnh avatar → Settings → Developer settings → Personal access tokens → Fine-grained tokens → Generate new token**
-2. Đặt tên token (ví dụ `GitShot`), chọn hạn dùng
-3. **Repository access**: chọn *Only select repositories* → chọn repo chứa ảnh (mặc định `gitshot-uploads` — app tự tạo nếu chưa có)
-4. **Permissions → Repository permissions → Contents: Read and write**
-5. Generate → copy token
-
-> Cách nhanh hơn: token dạng *Classic* với quyền `repo` cũng dùng được.
-
-### 2. Dán token vào app
-
-Mở GitShot → **⚙ Cài đặt GitHub** → dán token → **Kiểm tra kết nối** → **Lưu cài đặt**.
-
-### 3. Chụp và gửi
-
-| Thao tác | Phím tắt |
+| Thao tác | Phím tắt mặc định |
 |---|---|
-| Chụp vùng chọn | `Ctrl+Shift+1` |
-| Chụp toàn màn hình | `Ctrl+Shift+2` |
-| Chụp cửa sổ đang dùng | `Ctrl+Shift+3` |
-| Chụp cuộn trang dài | `Ctrl+Shift+4` |
-| Quay màn hình MP4 | `Ctrl+Shift+5` |
-| Quay GIF | `Ctrl+Shift+6` |
-| **Gửi lên GitHub** | **`Enter`** (trong cửa sổ sửa ảnh) |
+| Chụp vùng | Ctrl+Shift+1 |
+| Toàn màn hình | Ctrl+Shift+2 |
+| Cửa sổ hiện tại | Ctrl+Shift+3 |
+| Chụp cuộn | Ctrl+Shift+4 |
+| Quay MP4 | Ctrl+Shift+5 |
+| Quay GIF | Ctrl+Shift+6 |
+| Chụp lại vùng cũ | Ctrl+Shift+7 |
+| Lấy mã màu | Ctrl+Shift+8 |
+| Tải ảnh lên GitHub | Enter (trong cửa sổ sửa ảnh) |
 
-Sau khi upload, anh nhận được link dạng:
+Toàn bộ phím tắt có thể thay đổi tại Cài đặt → Phím tắt.
+
+Sau khi tải lên, liên kết có dạng:
 
 ```
 https://raw.githubusercontent.com/<user>/gitshot-uploads/main/uploads/2026/11/shot_2026-11-05_14-30-05.png
 ```
 
-Link này dán vào Facebook, Zalo, Markdown, tài liệu… đều hiển thị ảnh ngay. Trong Cài đặt có thể đổi sang link CDN (jsDelivr — tải nhanh hơn) và định dạng copy: link thuần / Markdown `![](...)` / HTML `<img>`.
+Liên kết được tự động sao chép vào clipboard. Kiểu liên kết (raw hoặc CDN) và định dạng sao chép (liên kết, Markdown, HTML) cấu hình tại Cài đặt.
 
-## ✨ Chức năng
+## Tính năng
 
-- **Chụp**: vùng chọn thông minh tự bắt ô/cửa sổ + bo góc tròn, toàn màn hình (đa màn hình), cửa sổ active, **chụp cuộn** tự ghép ảnh dài, chụp lại vùng cũ, chụp trễ, chụp tự động theo giờ
-- **Sửa ngay sau khi chụp**: bút, đường thẳng, mũi tên, khung, elip, chữ, **đánh số bước ①②③**, **che mờ** vùng nhạy cảm, đổi màu/độ dày, hoàn tác
-- **Quay**: MP4 và GIF theo vùng chọn hoặc toàn màn hình
-- **GitHub**: tự tạo repo chứa ảnh nếu chưa có, upload qua API chính thức, tự xử lý khi trùng tên file, thông báo lỗi tiếng Việt dễ hiểu (token sai, thiếu quyền…)
-- **Lịch sử**: mọi ảnh đã chụp/đã upload, nhấp đúp để copy lại link
-- **Chạy nền ở khay hệ thống**, phím tắt toàn cục hoạt động kể cả khi cửa sổ chính đã đóng
-- Tự lưu bản sao trong máy tại `Pictures/GitShot`
+- Chụp vùng thông minh: tự nhận ô/cửa sổ tại vị trí con trỏ, nhấp để chụp đúng ô, cạnh tự hít khi kéo chọn, ảnh bo góc tròn theo cửa sổ.
+- Chụp toàn màn hình (đa màn hình), cửa sổ hiện tại, chụp cuộn tự ghép, chụp lại vùng cũ, chụp trễ, chụp tự động theo chu kỳ kèm tự động tải lên.
+- Quay màn hình MP4 và GIF theo vùng hoặc toàn màn hình.
+- Trình sửa ảnh tích hợp: bút, đường thẳng, mũi tên, khung, elip, chữ, đánh số bước, che mờ, hoàn tác.
+- Công cụ: lấy mã màu, thước đo, OCR, ghép ảnh, tách ảnh theo lưới, tạo ảnh thu nhỏ, kiểm tra hash MD5/SHA256.
+- Lịch sử dạng lưới, nhấp đúp để sao chép lại liên kết.
+- Chạy nền tại khay hệ thống; phím tắt toàn cục tự cấu hình.
+- Bản sao cục bộ tại thư mục Pictures/GitShot.
 
-## ⚠ Lưu ý
+## Lưu ý kỹ thuật
 
-- Repo chứa ảnh nên để **Public** thì người khác mới mở được link. Nếu để Private, link raw sẽ cần token mới xem được.
-- Token chỉ lưu trên máy của anh tại `%APPDATA%/GitShot/config.json` — không nằm trong code, không gửi đi nơi nào khác ngoài `api.github.com`.
-- GitHub giới hạn 100MB/file qua API — dư sức cho ảnh chụp và video quay ngắn.
+- Kho chứa ảnh cần ở chế độ Public để liên kết mở được không cần đăng nhập.
+- Token chỉ lưu tại `%APPDATA%/GitShot/config.json` trên máy người dùng.
+- Giới hạn tải lên của GitHub API là 100 MB mỗi tệp.
 
-## 🛠 Chạy từ mã nguồn
+## Phát triển
 
 ```bash
 pip install -r requirements.txt
 python run.py
-# Kiểm thử logic: python -m unittest discover -s tests -v
-# Đóng gói: pyinstaller GitShot.spec
+python -m unittest discover -s tests -v   # kiểm thử
+pyinstaller GitShot.spec                  # đóng gói .exe
 ```
 
 ## Giấy phép

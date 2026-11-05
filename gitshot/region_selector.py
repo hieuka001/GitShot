@@ -142,9 +142,9 @@ class RegionSelector(QWidget):
         else:
             p.setPen(QColor("#e2e8f0"))
             p.setFont(QFont("Segoe UI", 13, QFont.Bold))
-            hint = ("Di chuột để app tự nhận ô/cửa sổ • kéo để chọn tay (cạnh tự hít) • S: tắt nhận ô • Esc: hủy"
+            hint = ("Di chuột để nhận ô • Kéo để chọn vùng • S: nhận ô • Esc: hủy"
                     if self.smart else
-                    "Kéo chuột để chọn vùng chụp • S: bật nhận ô thông minh • Esc: hủy")
+                    "Kéo để chọn vùng • S: nhận ô • Esc: hủy")
             p.drawText(24, 40, hint)
         p.end()
 
@@ -187,7 +187,7 @@ class MeasureOverlay(QWidget):
         p.fillRect(self.rect(), QColor(10, 12, 24, 90))
         p.setPen(QColor("#e2e8f0"))
         p.setFont(QFont("Segoe UI", 13, QFont.Bold))
-        p.drawText(24, 40, "📏 Kéo chuột để đo — Esc để thoát")
+        p.drawText(24, 40, "Kéo để đo — Esc để thoát")
         if not self._rect.isEmpty():
             r = self._rect.normalized()
             p.setPen(QPen(QColor("#f59e0b"), 2))
