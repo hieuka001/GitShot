@@ -1,4 +1,4 @@
-"""Bộ công cụ phụ kiểu ShareX — logic thuần PIL/hashlib, có unit test."""
+"""Bộ công cụ phụ — logic thuần PIL/hashlib, có unit test."""
 from __future__ import annotations
 
 import hashlib

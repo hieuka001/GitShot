@@ -1,6 +1,6 @@
 # 📸 GitShot — Chụp màn hình, Enter là lên GitHub
 
-Phần mềm chụp/quay màn hình cho Windows với đầy đủ chức năng kiểu **ShareX**, cộng thêm tính năng mà ShareX không có:
+Phần mềm chụp/quay màn hình đầy đủ chức năng cho Windows, với tính năng trung tâm:
 
 > **Chụp xong → ấn `Enter` (hoặc nút "Gửi lên GitHub") → ảnh được push thẳng lên GitHub → link ảnh tự copy vào clipboard.**
 
@@ -15,7 +15,14 @@ Phần mềm chụp/quay màn hình cho Windows với đầy đủ chức năng 
 - **Chụp vùng THÔNG MINH**: di chuột tới đâu, app tự nhận diện "ô vuông có sẵn" ở đó (cửa sổ, khung, nút, ô nhập…) và tô sáng bo góc theo đúng ô — **click 1 cái là chụp đúng ô đó**, ảnh được **bo góc tròn** như cửa sổ Windows 11. Kéo tay thì 4 cạnh tự **hít** vào cạnh ô gần nhất. Phím `S` bật/tắt chế độ nhận ô.
 - **Giao diện mới**: thanh điều hướng bên trái (Trang chủ / Công cụ / Lịch sử / Cài đặt), banner gradient, thẻ chức năng theo nhóm, chip trạng thái GitHub, **lịch sử dạng lưới thumbnail**.
 - **Thêm cách chụp**: chụp lại vùng cũ, chụp trễ 3 giây, **chụp tự động theo giờ** (tự upload), ảnh từ clipboard, mở ảnh từ máy để sửa/upload.
-- **Trang Công cụ kiểu ShareX**: lấy mã màu trên màn hình (click là copy HEX), thước đo px, OCR trích chữ từ ảnh, ghép nhiều ảnh thành 1, tách ảnh theo lưới, tạo ảnh thu nhỏ, kiểm tra hash file (MD5/SHA256), mở thư mục ảnh.
+- **Trang Công cụ tiện ích**: lấy mã màu trên màn hình (click là copy HEX), thước đo px, OCR trích chữ từ ảnh, ghép nhiều ảnh thành 1, tách ảnh theo lưới, tạo ảnh thu nhỏ, kiểm tra hash file (MD5/SHA256), mở thư mục ảnh.
+
+## 🆕 Mới ở v1.2
+
+- **Tự thiết lập tổ hợp phím**: vào Cài đặt → mục phím tắt, bấm vào ô của từng hành động rồi nhấn tổ hợp phím mong muốn (8 hành động: chụp vùng, toàn màn hình, cửa sổ, chụp cuộn, quay MP4, quay GIF, chụp lại vùng cũ, lấy mã màu). App tự chặn khi trùng tổ hợp, lưu xong **áp dụng ngay** và nhãn phím trên các thẻ tự cập nhật theo.
+- **Giao diện Liquid Glass**: nền gradient sâu, các panel/thẻ là lớp kính mờ trong suốt với viền sáng và bóng đổ mềm — sáng, sang và dễ nhìn hơn hẳn.
+
+![Trang Cài đặt với mục tự thiết lập phím tắt](assets/screenshot-settings.png)
 
 ## ⬇ Tải về
 

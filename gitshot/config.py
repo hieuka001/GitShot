@@ -46,6 +46,8 @@ class HotkeyConfig:
     scrolling: str = "ctrl+shift+4"
     record: str = "ctrl+shift+5"
     gif: str = "ctrl+shift+6"
+    last_region: str = "ctrl+shift+7"
+    color_picker: str = "ctrl+shift+8"
 
 
 @dataclass

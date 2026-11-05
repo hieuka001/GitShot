@@ -1,7 +1,8 @@
-"""GitShot v1.1 — cửa sổ chính dạng sidebar + trang Công cụ kiểu ShareX.
+"""GitShot — cửa sổ chính dạng sidebar, giao diện Liquid Glass.
 
 Trang: Trang chủ (nhóm chụp/quay) • Công cụ (màu, thước, OCR, ghép/tách ảnh,
-thumbnail, hash, thư mục) • Lịch sử (lưới thumbnail) • Cài đặt (GitHub + chụp).
+thumbnail, hash, thư mục) • Lịch sử (lưới thumbnail) • Cài đặt (GitHub + chụp
++ tổ hợp phím tự thiết lập).
 """
 from __future__ import annotations
 
@@ -11,10 +12,10 @@ from pathlib import Path
 
 from PIL import Image
 from PySide6.QtCore import QObject, Qt, QTimer, Signal, QSize
-from PySide6.QtGui import QAction, QIcon, QPixmap
+from PySide6.QtGui import QAction, QColor, QIcon, QPixmap
 from PySide6.QtWidgets import (
-    QApplication, QCheckBox, QComboBox, QFileDialog, QFrame, QGridLayout,
-    QGroupBox, QHBoxLayout, QInputDialog, QLabel, QLineEdit, QListWidget,
+    QApplication, QCheckBox, QComboBox, QFileDialog, QFrame, QGraphicsDropShadowEffect,
+    QGridLayout, QGroupBox, QHBoxLayout, QInputDialog, QLabel, QLineEdit, QListWidget,
     QListWidgetItem, QMainWindow, QMenu, QMessageBox, QPushButton, QSpinBox,
     QStackedWidget, QSystemTrayIcon, QTextEdit, QVBoxLayout, QWidget,
 )
@@ -29,6 +30,7 @@ from .config import AppConfig
 from .editor import EditorWindow, pil_to_pixmap
 from .github_uploader import GitHubUploader
 from .history import History, HistoryItem
+from .hotkeys_util import build_combo, find_conflicts, prettify, validate_combo
 from .region_selector import MeasureOverlay, RegionSelector
 from .tools_extra import (
     combine_images, file_hashes, make_thumbnail, ocr_image, split_image,
@@ -36,32 +38,41 @@ from .tools_extra import (
 from .utils import format_link, make_filename
 
 STYLE = """
-QMainWindow, QDialog { background: #0b0e1a; color: #e2e8f0; font-family: 'Segoe UI'; font-size: 13px; }
-QFrame#sidebar { background: #0d1120; border-right: 1px solid #1e293b; }
-QLabel#logo { font-size: 22px; font-weight: 800; color: #f8fafc; }
-QLabel#subtitle { color: #94a3b8; font-size: 12.5px; }
-QLabel#chip { background: #12233a; color: #7dd3fc; border: 1px solid #1e3a5f; border-radius: 9px; padding: 4px 8px; font-size: 11.5px; }
-QPushButton { background: #1e293b; color: #e2e8f0; border: 1px solid #334155; border-radius: 10px; padding: 8px 14px; }
-QPushButton:hover { background: #273549; border-color: #22d3ee; }
-QPushButton#primaryBtn { background: qlineargradient(x1:0,y1:0,x2:1,y2:0, stop:0 #0891b2, stop:1 #7c3aed);
-    color: white; font-weight: 800; border: none; padding: 11px 22px; font-size: 14px; }
-QPushButton#primaryBtn:hover { background: qlineargradient(x1:0,y1:0,x2:1,y2:0, stop:0 #06b6d4, stop:1 #8b5cf6); }
-QPushButton#nav { background: transparent; border: none; border-radius: 10px; padding: 10px 12px; text-align: left; font-size: 14px; font-weight: 600; }
-QPushButton#nav:hover { background: #16203a; }
-QPushButton#nav:checked { background: qlineargradient(x1:0,y1:0,x2:1,y2:0, stop:0 #164e63, stop:1 #4c1d95); color: white; }
-QPushButton#card { background: #111827; border: 1px solid #1f2b45; border-radius: 14px; padding: 14px 10px; font-size: 13.5px; font-weight: 600; }
-QPushButton#card:hover { border-color: #22d3ee; background: #0f2033; }
-QFrame#banner { background: qlineargradient(x1:0,y1:0,x2:1,y2:1, stop:0 #0e7490, stop:0.55 #1d4ed8, stop:1 #7c3aed); border-radius: 16px; }
+/* ===== Liquid Glass: nền gradient sâu + panel kính mờ + viền sáng + điểm nhấn ngọc/tím ===== */
+QMainWindow, QDialog { background: qlineargradient(x1:0,y1:0,x2:1,y2:1, stop:0 #0a0f22, stop:0.5 #0a1626, stop:1 #150f2e);
+    color: #e8eefc; font-family: 'Segoe UI'; font-size: 13px; }
+QWidget#contentRoot { background: transparent; }
+QFrame#sidebar { background: rgba(255,255,255,0.045); border-right: 1px solid rgba(255,255,255,0.10); }
+QLabel#logo { font-size: 23px; font-weight: 800; color: #ffffff; }
+QLabel#subtitle { color: #a5b4d4; font-size: 12.5px; }
+QLabel#chip { background: rgba(56,189,248,0.13); color: #a5e3ff; border: 1px solid rgba(125,211,252,0.35); border-radius: 10px; padding: 5px 9px; font-size: 11.5px; }
+QPushButton { background: rgba(255,255,255,0.07); color: #eef2ff; border: 1px solid rgba(255,255,255,0.14); border-radius: 11px; padding: 8px 14px; }
+QPushButton:hover { background: rgba(255,255,255,0.12); border-color: rgba(103,232,249,0.55); }
+QPushButton#primaryBtn { background: qlineargradient(x1:0,y1:0,x2:1,y2:0, stop:0 rgba(8,145,178,0.92), stop:1 rgba(124,58,237,0.92));
+    color: white; font-weight: 800; border: 1px solid rgba(255,255,255,0.28); padding: 11px 22px; font-size: 14px; }
+QPushButton#primaryBtn:hover { background: qlineargradient(x1:0,y1:0,x2:1,y2:0, stop:0 rgba(6,182,212,0.98), stop:1 rgba(139,92,246,0.98)); }
+QPushButton#nav { background: transparent; border: 1px solid transparent; border-radius: 12px; padding: 10px 12px; text-align: left; font-size: 14px; font-weight: 600; }
+QPushButton#nav:hover { background: rgba(255,255,255,0.07); }
+QPushButton#nav:checked { background: qlineargradient(x1:0,y1:0,x2:1,y2:0, stop:0 rgba(8,145,178,0.55), stop:1 rgba(124,58,237,0.55));
+    border-color: rgba(255,255,255,0.25); color: white; }
+QPushButton#card { background: rgba(255,255,255,0.055); border: 1px solid rgba(255,255,255,0.13); border-radius: 16px; padding: 14px 10px; font-size: 13.5px; font-weight: 600; }
+QPushButton#card:hover { background: rgba(255,255,255,0.105); border-color: rgba(103,232,249,0.65); }
+QFrame#banner { background: qlineargradient(x1:0,y1:0,x2:1,y2:1, stop:0 rgba(14,116,144,0.85), stop:0.55 rgba(29,78,216,0.75), stop:1 rgba(124,58,237,0.85));
+    border: 1px solid rgba(255,255,255,0.22); border-radius: 18px; }
 QLabel#bannerTitle { color: white; font-size: 20px; font-weight: 800; }
-QLabel#bannerSub { color: #dbeafe; font-size: 12.5px; }
-QGroupBox { border: 1px solid #1e293b; border-radius: 12px; margin-top: 10px; padding-top: 12px; font-weight: 700; color: #cbd5e1; }
-QGroupBox::title { subcontrol-origin: margin; left: 12px; padding: 0 6px; }
-QLineEdit, QComboBox, QSpinBox, QTextEdit { background: #111827; border: 1px solid #334155; border-radius: 8px; padding: 7px 10px; color: #e2e8f0; }
-QListWidget { background: #0f172a; border: 1px solid #1e293b; border-radius: 10px; }
-QToolButton { background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 6px 10px; color: #e2e8f0; }
-QToolButton:checked { background: #155e75; border-color: #22d3ee; }
-QScrollArea { border: none; background: #0b0e1a; }
-QLabel#status { color: #7dd3fc; font-size: 12px; }
+QLabel#bannerSub { color: #e0f2fe; font-size: 12.5px; }
+QGroupBox { background: rgba(255,255,255,0.035); border: 1px solid rgba(255,255,255,0.10); border-radius: 16px; margin-top: 12px; padding-top: 14px; font-weight: 700; color: #dbe6ff; }
+QGroupBox::title { subcontrol-origin: margin; left: 14px; padding: 0 6px; }
+QLineEdit, QComboBox, QSpinBox, QTextEdit { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.15); border-radius: 9px; padding: 7px 10px; color: #eef2ff; }
+QLineEdit:focus, QComboBox:focus, QSpinBox:focus { border-color: rgba(103,232,249,0.75); background: rgba(255,255,255,0.09); }
+QLineEdit#hotkeyCapturing { border-color: #fbbf24; background: rgba(251,191,36,0.12); color: #fde68a; }
+QListWidget { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.10); border-radius: 14px; }
+QToolButton { background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.14); border-radius: 9px; padding: 6px 10px; color: #eef2ff; }
+QToolButton:checked { background: rgba(8,145,178,0.55); border-color: rgba(103,232,249,0.7); }
+QScrollArea { border: none; background: transparent; }
+QScrollArea > QWidget > QWidget { background: transparent; }
+QLabel#status { color: #8be0ff; font-size: 12px; }
+QCheckBox { spacing: 8px; }
 """
 
 
@@ -78,6 +89,119 @@ def _png_bytes(img: Image.Image) -> bytes:
     buf = io.BytesIO()
     img.save(buf, "PNG")
     return buf.getvalue()
+
+
+def glass_shadow(widget, blur: int = 26, dy: int = 7, alpha: int = 110):
+    """Bóng đổ mềm dưới panel — tạo cảm giác lớp kính nổi trên nền (Liquid Glass)."""
+    eff = QGraphicsDropShadowEffect(widget)
+    eff.setBlurRadius(blur)
+    eff.setOffset(0, dy)
+    eff.setColor(QColor(0, 0, 0, alpha))
+    widget.setGraphicsEffect(eff)
+    return widget
+
+
+_QT_KEY_NAMES = {
+    Qt.Key_Space: "space", Qt.Key_Tab: "tab", Qt.Key_Return: "enter", Qt.Key_Enter: "enter",
+    Qt.Key_Print: "print screen", Qt.Key_Insert: "insert", Qt.Key_Delete: "delete",
+    Qt.Key_Home: "home", Qt.Key_End: "end", Qt.Key_PageUp: "page up", Qt.Key_PageDown: "page down",
+    Qt.Key_Up: "up", Qt.Key_Down: "down", Qt.Key_Left: "left", Qt.Key_Right: "right",
+    Qt.Key_Backspace: "backspace", Qt.Key_CapsLock: "caps lock",
+    Qt.Key_Comma: ",", Qt.Key_Period: ".", Qt.Key_Slash: "/", Qt.Key_Semicolon: ";",
+    Qt.Key_Apostrophe: "'", Qt.Key_BracketLeft: "[", Qt.Key_BracketRight: "]",
+    Qt.Key_Minus: "-", Qt.Key_Equal: "=", Qt.Key_Backslash: "\\", Qt.Key_QuoteLeft: "`",
+}
+_MODIFIER_KEYS = {Qt.Key_Control, Qt.Key_Shift, Qt.Key_Alt, Qt.Key_Meta}
+
+
+def _qt_key_name(key: int) -> str | None:
+    if Qt.Key_A <= key <= Qt.Key_Z:
+        return chr(key).lower()
+    if Qt.Key_0 <= key <= Qt.Key_9:
+        return chr(key)
+    if Qt.Key_F1 <= key <= Qt.Key_F35:
+        return f"f{key - Qt.Key_F1 + 1}"
+    return _QT_KEY_NAMES.get(key)
+
+
+class HotkeyEdit(QLineEdit):
+    """Ô tự thiết lập tổ hợp phím: bấm vào ô rồi nhấn tổ hợp phím mong muốn."""
+
+    def __init__(self, combo: str = "", parent=None):
+        super().__init__(parent)
+        self.combo = (combo or "").strip().lower()
+        self._capturing = False
+        self._old = self.combo
+        self.setReadOnly(True)
+        self.setCursor(Qt.IBeamCursor)
+        self._show_combo()
+        self.setToolTip("Bấm vào ô rồi nhấn tổ hợp phím mới. Esc = hủy, để trống = không dùng phím tắt.")
+
+    def _show_combo(self):
+        self.setText(prettify(self.combo) if self.combo else "— chưa đặt (bấm để đặt) —")
+
+    def clear_combo(self):
+        self.combo = ""
+        self._show_combo()
+
+    def focusInEvent(self, e):
+        super().focusInEvent(e)
+        self._begin()
+
+    def mousePressEvent(self, e):
+        super().mousePressEvent(e)
+        self._begin()
+
+    def _begin(self):
+        if self._capturing:
+            return
+        self._capturing = True
+        self._old = self.combo
+        self.setObjectName("hotkeyCapturing")
+        self.setStyleSheet("")  # ép Qt vẽ lại theo objectName mới
+        self.setText("⌨ Đang chờ phím… (giữ Ctrl/Alt/Shift rồi nhấn phím)")
+
+    def _end(self):
+        self._capturing = False
+        self.setObjectName("")
+        self.setStyleSheet("")
+        self._show_combo()
+
+    def keyPressEvent(self, e):
+        if not self._capturing:
+            return
+        key = e.key()
+        if key == Qt.Key_Escape:
+            self.combo = self._old
+            self._end()
+            self.clearFocus()
+            return
+        mods = []
+        m = e.modifiers()
+        if m & Qt.ControlModifier:
+            mods.append("ctrl")
+        if m & Qt.AltModifier:
+            mods.append("alt")
+        if m & Qt.ShiftModifier:
+            mods.append("shift")
+        if m & Qt.MetaModifier:
+            mods.append("windows")
+        if key in _MODIFIER_KEYS:
+            pretty = " + ".join(x.title() for x in mods) or "⌨"
+            self.setText(f"{pretty} + …")
+            return
+        name = _qt_key_name(key)
+        if name is None:
+            self.setText("Phím này chưa hỗ trợ — thử phím chữ, số hoặc F1–F12")
+            return
+        combo = build_combo(mods, name)
+        err = validate_combo(combo)
+        if err:
+            self.setText(err)
+            return
+        self.combo = combo
+        self._end()
+        self.clearFocus()
 
 
 class SettingsPanel(QWidget):
@@ -138,12 +262,33 @@ class SettingsPanel(QWidget):
         v.addWidget(self.chk_copy); v.addWidget(self.chk_create); v.addWidget(self.chk_local)
         lay.addWidget(g2)
 
-        g3 = QGroupBox("⌨ Phím tắt toàn cục")
-        v3 = QVBoxLayout(g3)
-        hk = config.hotkeys
-        v3.addWidget(QLabel(
-            f"Chụp vùng: <b>{hk.region}</b> • Toàn màn hình: <b>{hk.fullscreen}</b> • Cửa sổ: <b>{hk.window}</b><br>"
-            f"Chụp cuộn: <b>{hk.scrolling}</b> • Quay MP4: <b>{hk.record}</b> • Quay GIF: <b>{hk.gif}</b>"))
+        g3 = QGroupBox("⌨ Phím tắt toàn cục — tự thiết lập")
+        f3 = QGridLayout(g3)
+        note = QLabel("Bấm vào ô rồi nhấn tổ hợp phím anh muốn (ví dụ Ctrl+Shift+A, Alt+F9…). "
+                      "Bấm ✕ để bỏ phím tắt của hành động đó. Lưu xong áp dụng ngay, không cần mở lại app.")
+        note.setWordWrap(True)
+        note.setObjectName("subtitle")
+        f3.addWidget(note, 0, 0, 1, 3)
+        self.hk_edits: dict[str, HotkeyEdit] = {}
+        hk_actions = [
+            ("region", "✂️ Chụp vùng thông minh"),
+            ("fullscreen", "🖥 Toàn màn hình"),
+            ("window", "🪟 Cửa sổ hiện tại"),
+            ("scrolling", "📜 Chụp cuộn"),
+            ("record", "🎬 Quay MP4"),
+            ("gif", "🖼 Quay GIF"),
+            ("last_region", "🔁 Chụp lại vùng cũ"),
+            ("color_picker", "🎨 Lấy mã màu"),
+        ]
+        for i, (action, label) in enumerate(hk_actions, start=1):
+            f3.addWidget(QLabel(label), i, 0)
+            edit = HotkeyEdit(getattr(config.hotkeys, action, ""))
+            self.hk_edits[action] = edit
+            f3.addWidget(edit, i, 1)
+            b_clear = QPushButton("✕")
+            b_clear.setFixedWidth(34)
+            b_clear.clicked.connect(lambda _=False, ed=edit: ed.clear_combo())
+            f3.addWidget(b_clear, i, 2)
         lay.addWidget(g3)
 
         b_save = QPushButton("💾 Lưu cài đặt")
@@ -152,7 +297,19 @@ class SettingsPanel(QWidget):
         lay.addWidget(b_save)
         lay.addStretch()
 
+    HOTKEY_LABELS = {
+        "region": "Chụp vùng", "fullscreen": "Toàn màn hình", "window": "Cửa sổ",
+        "scrolling": "Chụp cuộn", "record": "Quay MP4", "gif": "Quay GIF",
+        "last_region": "Chụp lại vùng cũ", "color_picker": "Lấy mã màu",
+    }
+
+    def _hotkey_mapping(self) -> dict[str, str]:
+        return {a: ed.combo for a, ed in self.hk_edits.items()}
+
     def _apply(self, cfg: AppConfig):
+        for action, combo in self._hotkey_mapping().items():
+            if hasattr(cfg.hotkeys, action):
+                setattr(cfg.hotkeys, action, combo)
         cfg.github.token = self.e_token.text().strip()
         cfg.github.owner = self.e_owner.text().strip()
         cfg.github.repo = self.e_repo.text().strip() or "gitshot-uploads"
@@ -191,10 +348,18 @@ class SettingsPanel(QWidget):
             QMessageBox.critical(self, "Lỗi", str(e))
 
     def _save(self):
+        conflicts = find_conflicts(self._hotkey_mapping())
+        if conflicts:
+            detail = "\n".join(
+                f"• {prettify(c)}: đang dùng cho " + ", ".join(self.HOTKEY_LABELS.get(a, a) for a in acts)
+                for c, acts in conflicts.items())
+            QMessageBox.warning(self, "Trùng tổ hợp phím",
+                                f"Các tổ hợp sau bị trùng nhau, hãy đổi trước khi lưu:\n{detail}")
+            return
         self._apply(self.config)
         self.config.save()
         self.saved.emit()
-        QMessageBox.information(self, "Đã lưu", "Cài đặt đã được lưu.")
+        QMessageBox.information(self, "Đã lưu", "Cài đặt đã lưu — phím tắt mới áp dụng ngay.")
 
 
 class RecordControl(QWidget):
@@ -238,6 +403,10 @@ class GitShotApp(QObject):
         self.hotkey_fired.connect(self._on_hotkey)
 
         self.window = MainWindow(self)
+        self._hk_registered = False
+        # Lưu cài đặt xong là áp dụng phím tắt mới ngay (không cần khởi động lại)
+        self.window.settings_panel.saved.connect(lambda: self._register_hotkeys())
+        self.window.settings_panel.saved.connect(self._rebuild_tray)
         self._build_tray()
         self._register_hotkeys()
 
@@ -579,7 +748,7 @@ class GitShotApp(QObject):
         self.tray = QSystemTrayIcon(ic, self.window)
         menu = QMenu()
         for text, fn in [
-            ("📸 Chụp vùng thông minh (Ctrl+Shift+1)", self.capture_region),
+            (f"📸 Chụp vùng thông minh ({prettify(self.config.hotkeys.region)})", self.capture_region),
             ("🖥 Toàn màn hình", self.capture_fullscreen),
             ("🪟 Cửa sổ hiện tại", self.capture_window),
             ("🔁 Chụp lại vùng cũ", self.capture_last_region),
@@ -602,16 +771,32 @@ class GitShotApp(QObject):
             import keyboard
         except Exception:
             return
-        hk = self.config.hotkeys
-        mapping = {
-            hk.region: "region", hk.fullscreen: "fullscreen", hk.window: "window",
-            hk.scrolling: "scrolling", hk.record: "record", hk.gif: "gif",
-        }
-        for combo, name in mapping.items():
+        if self._hk_registered:
             try:
-                keyboard.add_hotkey(combo, lambda n=name: self.hotkey_fired.emit(n), suppress=False)
+                keyboard.remove_all_hotkeys()
             except Exception:
                 pass
+            self._hk_registered = False
+        hk = self.config.hotkeys
+        pairs = [
+            (hk.region, "region"), (hk.fullscreen, "fullscreen"), (hk.window, "window"),
+            (hk.scrolling, "scrolling"), (hk.record, "record"), (hk.gif, "gif"),
+            (hk.last_region, "last_region"), (hk.color_picker, "color_picker"),
+        ]
+        for combo, name in pairs:
+            if not combo or validate_combo(combo):
+                continue
+            try:
+                keyboard.add_hotkey(combo, lambda n=name: self.hotkey_fired.emit(n), suppress=False)
+                self._hk_registered = True
+            except Exception:
+                pass
+
+    def _rebuild_tray(self):
+        if getattr(self, "tray", None):
+            self.tray.hide()
+            self.tray = None
+        self._build_tray()
 
     def _on_hotkey(self, name: str):
         {
@@ -621,6 +806,8 @@ class GitShotApp(QObject):
             "scrolling": self.capture_scrolling,
             "record": lambda: self.record_screen("mp4"),
             "gif": lambda: self.record_screen("gif"),
+            "last_region": self.capture_last_region,
+            "color_picker": self.tool_color_picker,
         }.get(name, lambda: None)()
 
 
@@ -669,7 +856,7 @@ class MainWindow(QMainWindow):
         logo = QLabel("📸 GitShot")
         logo.setObjectName("logo")
         sb.addWidget(logo)
-        tag = QLabel("ShareX-style + GitHub")
+        tag = QLabel("Chụp màn hình • Lên GitHub")
         tag.setObjectName("subtitle")
         sb.addWidget(tag)
         sb.addSpacing(16)
@@ -698,38 +885,56 @@ class MainWindow(QMainWindow):
         rv.setContentsMargins(16, 14, 16, 10)
         self.stack = QStackedWidget()
         rv.addWidget(self.stack, 1)
-        self.status_label = QLabel("Sẵn sàng — Ctrl+Shift+1 để chụp vùng thông minh.")
+        self.status_label = QLabel(
+            f"Sẵn sàng — {prettify(app.config.hotkeys.region)} để chụp vùng thông minh.")
         self.status_label.setObjectName("status")
         self.status_label.setWordWrap(True)
         rv.addWidget(self.status_label)
         root.addWidget(right, 1)
         self.setCentralWidget(central)
 
+        self._hk_cards: dict[str, tuple] = {}
         self._build_home_page(app)
         self._build_tools_page(app)
         self._build_history_page()
         self._build_settings_page(app)
         self.show_page("home")
         self.refresh_history()
+        self.refresh_hotkey_labels()
         self._refresh_chip()
 
     # ----- Trang chủ -----
     def _card_grid(self, items, cols=4):
         grid = QGridLayout()
         grid.setSpacing(10)
-        for i, (label, fn) in enumerate(items):
+        for i, item in enumerate(items):
+            label, fn = item[0], item[1]
+            action = item[2] if len(item) > 2 else None
+            fallback = item[3] if len(item) > 3 else ""
             b = QPushButton(label)
             b.setObjectName("card")
             b.setMinimumHeight(84)
             b.clicked.connect(fn)
+            glass_shadow(b, blur=18, dy=4, alpha=75)
+            if action:
+                self._hk_cards[action] = (b, label, fallback)
             grid.addWidget(b, i // cols, i % cols)
         return grid
+
+    def refresh_hotkey_labels(self):
+        """Cập nhật tổ hợp phím hiển thị trên các thẻ theo cài đặt hiện tại."""
+        hk = self.app_ref.config.hotkeys
+        for action, (b, base, fallback) in self._hk_cards.items():
+            combo = getattr(hk, action, "")
+            detail = prettify(combo) if combo else fallback
+            b.setText(f"{base}\n{detail}" if detail else base)
 
     def _build_home_page(self, app):
         page = QWidget()
         lay = QVBoxLayout(page)
         banner = QFrame()
         banner.setObjectName("banner")
+        glass_shadow(banner, blur=30, dy=8, alpha=120)
         bv = QVBoxLayout(banner)
         t = QLabel("Chụp → Enter → Có link GitHub")
         t.setObjectName("bannerTitle")
@@ -741,11 +946,11 @@ class MainWindow(QMainWindow):
 
         g1 = QGroupBox("📸  Chụp ảnh")
         g1.setLayout(self._card_grid([
-            ("✂️\nChụp vùng\nthông minh", app.capture_region),
-            ("🖥\nToàn màn hình\nCtrl+Shift+2", app.capture_fullscreen),
-            ("🪟\nCửa sổ hiện tại\nCtrl+Shift+3", app.capture_window),
-            ("🔁\nChụp lại\nvùng cũ", app.capture_last_region),
-            ("📜\nChụp cuộn\ntrang dài", app.capture_scrolling),
+            ("✂️\nChụp vùng", app.capture_region, "region", "thông minh"),
+            ("🖥\nToàn màn hình", app.capture_fullscreen, "fullscreen", ""),
+            ("🪟\nCửa sổ hiện tại", app.capture_window, "window", ""),
+            ("🔁\nChụp lại vùng cũ", app.capture_last_region, "last_region", ""),
+            ("📜\nChụp cuộn", app.capture_scrolling, "scrolling", "trang dài"),
             ("⏳\nChụp trễ\n3 giây", lambda: app.capture_delayed(3)),
             ("⏱\nChụp tự động\ntheo giờ", app.capture_auto),
             ("📋\nẢnh từ\nclipboard", app.capture_from_clipboard),
@@ -755,8 +960,8 @@ class MainWindow(QMainWindow):
 
         g2 = QGroupBox("🎬  Quay màn hình")
         g2.setLayout(self._card_grid([
-            ("🎬\nQuay MP4\nCtrl+Shift+5", lambda: app.record_screen("mp4")),
-            ("🖼\nQuay GIF\nCtrl+Shift+6", lambda: app.record_screen("gif")),
+            ("🎬\nQuay MP4", lambda: app.record_screen("mp4"), "record", ""),
+            ("🖼\nQuay GIF", lambda: app.record_screen("gif"), "gif", ""),
         ], cols=3))
         lay.addWidget(g2)
         lay.addStretch()
@@ -766,7 +971,7 @@ class MainWindow(QMainWindow):
     def _build_tools_page(self, app):
         page = QWidget()
         lay = QVBoxLayout(page)
-        title = QLabel("🧰 Công cụ — kiểu ShareX")
+        title = QLabel("🧰 Công cụ tiện ích")
         title.setObjectName("logo")
         lay.addWidget(title)
         sub = QLabel("Các tiện ích đi kèm, không cần mở phần mềm khác.")
@@ -790,6 +995,7 @@ class MainWindow(QMainWindow):
             b.setObjectName("card")
             b.setMinimumHeight(92)
             b.clicked.connect(fn)
+            glass_shadow(b, blur=18, dy=4, alpha=75)
             grid.addWidget(b, i // 3, i % 3)
         lay.addLayout(grid)
         lay.addStretch()
@@ -824,6 +1030,7 @@ class MainWindow(QMainWindow):
         from PySide6.QtWidgets import QScrollArea
         panel = SettingsPanel(app.config)
         panel.saved.connect(self._refresh_chip)
+        panel.saved.connect(self.refresh_hotkey_labels)
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setWidget(panel)
@@ -883,6 +1090,8 @@ class MainWindow(QMainWindow):
         if hasattr(self.app_ref, "tray") and self.app_ref.tray:
             e.ignore()
             self.hide()
-            self.app_ref._tray_msg("GitShot", "Vẫn chạy nền — Ctrl+Shift+1 để chụp vùng bất cứ lúc nào.")
+            self.app_ref._tray_msg(
+                "GitShot",
+                f"Vẫn chạy nền — {prettify(self.app_ref.config.hotkeys.region)} để chụp vùng bất cứ lúc nào.")
         else:
             super().closeEvent(e)
