@@ -12,7 +12,7 @@ from PySide6.QtCore import Qt, QRect, QPoint, Signal
 from PySide6.QtGui import QColor, QPainter, QPainterPath, QPen, QFont
 from PySide6.QtWidgets import QWidget
 
-from .windows_detect import enumerate_rectangles, find_snap_rect, snap_edges
+from .windows_detect import StableRectTracker, enumerate_rectangles, snap_edges
 
 
 class RegionSelector(QWidget):
@@ -30,6 +30,7 @@ class RegionSelector(QWidget):
         self._ox, self._oy = geo.topLeft().x(), geo.topLeft().y()
         self.smart = smart
         self._rects = enumerate_rectangles() if smart else []
+        self._tracker = StableRectTracker()
         self._hover = None        # rect toàn cục (x1,y1,x2,y2,title)
         self._start: QPoint | None = None
         self._rect = QRect()      # rect kéo tay (tọa độ widget)
@@ -58,7 +59,7 @@ class RegionSelector(QWidget):
             self._rect = QRect(self._start, pos)
         elif self.smart:
             gx, gy = self._global_point(pos)
-            self._hover = find_snap_rect(self._rects, gx, gy)
+            self._hover = self._tracker.update(self._rects, gx, gy)
         self.update()
 
     def mouseReleaseEvent(self, e):
@@ -66,10 +67,18 @@ class RegionSelector(QWidget):
             return
         drag = self._rect.normalized()
         start, self._start = self._start, None
-        # Click (không kéo) khi đang có ô được nhận diện -> chụp đúng ô đó
-        if drag.width() <= 4 and drag.height() <= 4 and self.smart and self._hover:
-            self._emit_global(self._hover[:4], True)
-            return
+        # Thả chuột khi đang có ô được khoanh -> MẶC ĐỊNH chụp đúng ô đó:
+        # - nhấp chuột (tay lệch vài px vẫn tính là click), hoặc
+        # - kéo nhẹ ngay trong ô (vùng kéo nhỏ hơn 1/3 ô) cũng là ý chọn ô.
+        if self.smart and self._hover:
+            hov_area = max(1, (self._hover[2] - self._hover[0]) * (self._hover[3] - self._hover[1]))
+            drag_area = drag.width() * drag.height()
+            cx, cy = self._global_point(drag.center())
+            inside = (self._hover[0] <= cx <= self._hover[2]
+                      and self._hover[1] <= cy <= self._hover[3])
+            if (drag.width() <= 10 and drag.height() <= 10) or (inside and drag_area <= hov_area / 3):
+                self._emit_global(self._hover[:4], True)
+                return
         if drag.width() > 4 and drag.height() > 4:
             gx1, gy1 = self._global_point(drag.topLeft())
             gx2, gy2 = self._global_point(drag.bottomRight())
@@ -92,6 +101,7 @@ class RegionSelector(QWidget):
             self.smart = not self.smart
             if self.smart and not self._rects:
                 self._rects = enumerate_rectangles()
+            self._tracker.reset()
             self._hover = None
             self.update()
         elif e.key() in (Qt.Key_Return, Qt.Key_Enter):
@@ -135,10 +145,9 @@ class RegionSelector(QWidget):
             p.setCompositionMode(QPainter.CompositionMode_SourceOver)
             p.setPen(QPen(QColor("#22d3ee"), 2))
             p.drawPath(path)
-            p.setPen(QPen(QColor("#a78bfa"), 1, Qt.DashLine))
-            p.drawRect(r.adjusted(-5, -5, 5, 5))
-            title = (self._hover[4] or "Ô trên màn hình")[:42]
-            self._label(p, r, f"▣ {title} — {r.width()} × {r.height()} • Click để chụp ô này")
+            title = (self._hover[4] or "")[:42]
+            label = f"{title} — {r.width()} × {r.height()}" if title else f"{r.width()} × {r.height()}"
+            self._label(p, r, label)
         else:
             p.setPen(QColor("#e2e8f0"))
             p.setFont(QFont("Segoe UI", 13, QFont.Bold))

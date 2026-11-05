@@ -25,7 +25,8 @@ def find_snap_rect(rects, x: int, y: int, min_size: int = 24):
     """Ô NHỎ NHẤT chứa điểm (x, y) — chính là ô người dùng đang trỏ vào.
 
     Ưu tiên ô nhỏ nhất vì đó thường là nút/khung nội dung cụ thể, thay vì
-    cả cửa sổ lớn bao ngoài.
+    cả cửa sổ lớn bao ngoài. Tie-break xác định (diện tích rồi tọa độ) để
+    cùng một danh sách ô luôn cho cùng một kết quả, bất kể thứ tự liệt kê.
     """
     candidates = [
         r for r in rects
@@ -33,7 +34,62 @@ def find_snap_rect(rects, x: int, y: int, min_size: int = 24):
     ]
     if not candidates:
         return None
-    return min(candidates, key=rect_area)
+    return min(candidates, key=lambda r: (rect_area(r), r[0], r[1], r[2], r[3]))
+
+
+class StableRectTracker:
+    """Giữ ô đang khoanh ỔN ĐỊNH, chống nhảy qua lại giữa các ô chồng nhau.
+
+    Vấn đề của cách chọn thuần "ô nhỏ nhất": di chuột 1px gần biên chung của
+    hai ô chồng nhau là ô thắng đổi ngay -> khung khoanh nhảy liên tục.
+    Tracker này giữ ô hiện tại cho tới khi:
+    - con trỏ ra khỏi ô hiện tại (nới biên stick_px), hoặc
+    - xuất hiện ô nhỏ hơn hẳn (<= shrink_ratio diện tích) chứa con trỏ và
+      ô đó thắng LIÊN TIẾP confirm lần (loại nhiễu 1 khung hình).
+    """
+
+    def __init__(self, stick_px: int = 6, shrink_ratio: float = 0.55, confirm: int = 2):
+        self.stick_px = stick_px
+        self.shrink_ratio = shrink_ratio
+        self.confirm = confirm
+        self.current = None
+        self._pending = None
+        self._pending_n = 0
+
+    def reset(self):
+        self.current = None
+        self._pending = None
+        self._pending_n = 0
+
+    def _confirm(self, cand):
+        if self._pending is not None and cand[:4] == self._pending[:4]:
+            self._pending_n += 1
+        else:
+            self._pending, self._pending_n = cand, 1
+        if self._pending_n >= self.confirm:
+            self.current = cand
+            self._pending, self._pending_n = None, 0
+        return self.current
+
+    def update(self, rects, x: int, y: int):
+        cand = find_snap_rect(rects, x, y)
+        cur = self.current
+        if cur is not None:
+            inflated = (cur[0] - self.stick_px, cur[1] - self.stick_px,
+                        cur[2] + self.stick_px, cur[3] + self.stick_px)
+            if rect_contains(inflated, x, y):
+                if cand is None or cand[:4] == cur[:4]:
+                    self._pending, self._pending_n = None, 0
+                    return cur
+                # Chỉ nhường cho ô nhỏ hơn hẳn, và phải thắng liên tiếp
+                if rect_area(cand) <= self.shrink_ratio * rect_area(cur):
+                    return self._confirm(cand)
+                self._pending, self._pending_n = None, 0
+                return cur
+        # Ngoài ô hiện tại: nhận ô ứng viên ngay
+        self.current = cand
+        self._pending, self._pending_n = None, 0
+        return self.current
 
 
 def snap_edges(bbox, rects, threshold: int = 12):
@@ -93,18 +149,42 @@ def _enumerate_win32(max_rects: int) -> list:
 
     CB = ctypes.WINFUNCTYPE(ctypes.c_bool, wt.HWND, wt.LPARAM)
 
+    import os
+    own_pid = os.getpid()
+
+    def is_own(hwnd):
+        pid = wt.DWORD()
+        user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+        return pid.value == own_pid
+
     def enum_top(hwnd, _):
-        if user32.IsWindowVisible(hwnd):
+        if user32.IsWindowVisible(hwnd) and not is_own(hwnd):
             add(hwnd)
         return True
 
     user32.EnumWindows(CB(enum_top), 0)
 
     # Khung con của cửa sổ đang dùng — nơi có các "ô" cụ thể (nút, panel, ô nhập…)
+    # Nếu cửa sổ foreground là chính GitShot (mở chụp từ nút trong app), dùng
+    # cửa sổ hiển thị trên cùng không phải của app để lấy ô con.
     fg = user32.GetForegroundWindow()
+    if not fg or is_own(fg):
+        fg = None
+        found = []
+
+        def enum_first(hwnd, _):
+            if user32.IsWindowVisible(hwnd) and not is_own(hwnd):
+                found.append(hwnd)
+                return False
+            return True
+
+        user32.EnumWindows(CB(enum_first), 0)
+        if found:
+            fg = found[0]
     if fg:
         def enum_child(hwnd, _):
-            add(hwnd)
+            if user32.IsWindowVisible(hwnd):  # bỏ ô ẩn/khung chứa vô hình
+                add(hwnd)
             return len(rects) < max_rects
 
         user32.EnumChildWindows(fg, CB(enum_child), 0)
