@@ -6,9 +6,16 @@ Phần mềm chụp/quay màn hình cho Windows với đầy đủ chức năng 
 
 ![icon](assets/icon.png)
 
-| Màn hình chính | Trình sửa ảnh sau khi chụp |
-|---|---|
-| ![Màn hình chính](assets/screenshot-main.png) | ![Trình sửa ảnh](assets/screenshot-editor.png) |
+| Màn hình chính | Trang Công cụ | Trình sửa ảnh |
+|---|---|---|
+| ![Màn hình chính](assets/screenshot-main.png) | ![Công cụ](assets/screenshot-tools.png) | ![Trình sửa ảnh](assets/screenshot-editor.png) |
+
+## 🆕 Mới ở v1.1
+
+- **Chụp vùng THÔNG MINH**: di chuột tới đâu, app tự nhận diện "ô vuông có sẵn" ở đó (cửa sổ, khung, nút, ô nhập…) và tô sáng bo góc theo đúng ô — **click 1 cái là chụp đúng ô đó**, ảnh được **bo góc tròn** như cửa sổ Windows 11. Kéo tay thì 4 cạnh tự **hít** vào cạnh ô gần nhất. Phím `S` bật/tắt chế độ nhận ô.
+- **Giao diện mới**: thanh điều hướng bên trái (Trang chủ / Công cụ / Lịch sử / Cài đặt), banner gradient, thẻ chức năng theo nhóm, chip trạng thái GitHub, **lịch sử dạng lưới thumbnail**.
+- **Thêm cách chụp**: chụp lại vùng cũ, chụp trễ 3 giây, **chụp tự động theo giờ** (tự upload), ảnh từ clipboard, mở ảnh từ máy để sửa/upload.
+- **Trang Công cụ kiểu ShareX**: lấy mã màu trên màn hình (click là copy HEX), thước đo px, OCR trích chữ từ ảnh, ghép nhiều ảnh thành 1, tách ảnh theo lưới, tạo ảnh thu nhỏ, kiểm tra hash file (MD5/SHA256), mở thư mục ảnh.
 
 ## ⬇ Tải về
 
@@ -53,7 +60,7 @@ Link này dán vào Facebook, Zalo, Markdown, tài liệu… đều hiển thị
 
 ## ✨ Chức năng
 
-- **Chụp**: vùng chọn (hiện kích thước trực tiếp), toàn màn hình (đa màn hình), cửa sổ active, **chụp cuộn** tự ghép ảnh dài, hẹn giờ qua khay hệ thống
+- **Chụp**: vùng chọn thông minh tự bắt ô/cửa sổ + bo góc tròn, toàn màn hình (đa màn hình), cửa sổ active, **chụp cuộn** tự ghép ảnh dài, chụp lại vùng cũ, chụp trễ, chụp tự động theo giờ
 - **Sửa ngay sau khi chụp**: bút, đường thẳng, mũi tên, khung, elip, chữ, **đánh số bước ①②③**, **che mờ** vùng nhạy cảm, đổi màu/độ dày, hoàn tác
 - **Quay**: MP4 và GIF theo vùng chọn hoặc toàn màn hình
 - **GitHub**: tự tạo repo chứa ảnh nếu chưa có, upload qua API chính thức, tự xử lý khi trùng tên file, thông báo lỗi tiếng Việt dễ hiểu (token sai, thiếu quyền…)

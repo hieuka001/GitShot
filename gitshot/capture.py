@@ -69,6 +69,22 @@ def scrolling_capture(bbox, steps: int = 6, delay: float = 0.55, scroll_amount: 
     return stitch_images(frames)
 
 
+def apply_rounded_corners(img: Image.Image, radius: int = 10) -> Image.Image:
+    """Bo tròn 4 góc ảnh (góc thành trong suốt) — khớp bo góc cửa sổ Windows 11."""
+    from PIL import ImageDraw
+
+    img = img.convert("RGBA")
+    w, h = img.size
+    radius = max(0, min(radius, w // 2, h // 2))
+    if radius == 0:
+        return img
+    mask = Image.new("L", (w, h), 0)
+    d = ImageDraw.Draw(mask)
+    d.rounded_rectangle([0, 0, w - 1, h - 1], radius=radius, fill=255)
+    img.putalpha(mask)
+    return img
+
+
 def pixelate(img: Image.Image, bbox: tuple[int, int, int, int], block: int = 12) -> Image.Image:
     """Làm mờ ô vuông (che thông tin nhạy cảm) vùng bbox TRONG ảnh."""
     out = img.copy()

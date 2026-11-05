@@ -38,7 +38,7 @@ def pixmap_to_pil(pm: QPixmap) -> Image.Image:
     buf = QBuffer(ba)
     buf.open(QIODevice.WriteOnly)
     pm.save(buf, "PNG")
-    return Image.open(io.BytesIO(bytes(ba))).convert("RGB")
+    return Image.open(io.BytesIO(bytes(ba))).convert("RGBA")
 
 
 def pil_to_pixmap(img: Image.Image) -> QPixmap:
@@ -183,6 +183,7 @@ class Canvas(QWidget):
 
     def paintEvent(self, e):
         p = QPainter(self)
+        p.fillRect(self.rect(), QColor("#111827"))  # nền tối để thấy phần góc trong suốt (ảnh bo góc)
         p.drawPixmap(0, 0, self._preview or self.pm)
         p.end()
 

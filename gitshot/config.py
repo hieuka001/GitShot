@@ -56,6 +56,10 @@ class AppConfig:
     local_folder: str = ""                # trống = Pictures/GitShot
     open_editor_after_capture: bool = True
     record_fps: int = 15
+    smart_snap: bool = True               # chụp vùng: tự nhận ô/cửa sổ có sẵn
+    rounded_corners: bool = True          # ảnh chụp theo ô/cửa sổ được bo góc tròn
+    corner_radius: int = 10
+    last_region: list = field(default_factory=list)  # [x1, y1, x2, y2]
 
     # ---------- load / save ----------
     @classmethod
@@ -74,7 +78,8 @@ class AppConfig:
         for k, v in hk.items():
             if hasattr(cfg.hotkeys, k):
                 setattr(cfg.hotkeys, k, v)
-        for k in ("save_local_copy", "local_folder", "open_editor_after_capture", "record_fps"):
+        for k in ("save_local_copy", "local_folder", "open_editor_after_capture", "record_fps",
+                  "smart_snap", "rounded_corners", "corner_radius", "last_region"):
             if k in raw:
                 setattr(cfg, k, raw[k])
         return cfg
