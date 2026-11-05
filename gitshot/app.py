@@ -163,6 +163,24 @@ class _Dispatcher(QObject):
             self._cleanup()
 
 
+def build_updater_script(new_file: str, target: str) -> str:
+    """Script .bat thay exe: đợi app thoát (exe hết bị khóa) -> ghi đè ->
+    mở lại bản mới -> tự xóa. App đang chạy không tự ghi đè được chính nó."""
+    return (
+        "@echo off\r\n"
+        "timeout /t 2 /nobreak >nul\r\n"
+        ":retry\r\n"
+        f'copy /y "{new_file}" "{target}" >nul 2>&1\r\n'
+        "if errorlevel 1 (\r\n"
+        "  timeout /t 1 /nobreak >nul\r\n"
+        "  goto retry\r\n"
+        ")\r\n"
+        f'del "{new_file}" >nul 2>&1\r\n'
+        f'start "" "{target}"\r\n'
+        'del "%~f0"\r\n'
+    )
+
+
 def run_async(fn, on_done=None, on_fail=None):
     """Việc nặng (mạng, chụp cuộn, mã hóa) chạy ở thread riêng để giao diện
     không bao giờ bị đơ. Trả về QThread đang chạy."""
@@ -508,8 +526,13 @@ class GitShotApp(QObject):
         self._register_hotkeys()
         QTimer.singleShot(6000, self._check_update)  # kiểm tra bản mới sau khi mở 6s
 
-    def _check_update(self):
-        """Hỏi GitHub Releases xem có bản GitShot mới hơn bản đang chạy."""
+    def _check_update(self, manual: bool = False):
+        """Hỏi GitHub Releases xem có bản GitShot mới hơn bản đang chạy.
+
+        Có bản mới + đang chạy bản .exe: hỏi ngay trong app, người dùng bấm
+        "Cập nhật ngay" là app tự tải, tự thay exe và mở lại (xem
+        _start_self_update). Chạy từ mã nguồn: chỉ mở trang release.
+        """
         from . import __version__
 
         def fetch():
@@ -524,16 +547,72 @@ class GitShotApp(QObject):
         def done(data):
             from .utils import is_newer_version
             tag = (data or {}).get("tag_name", "")
-            if tag and is_newer_version(tag, __version__):
-                url = data.get("html_url", "")
-                self.status(f"Có bản GitShot mới {tag}.")
-                self._tray_msg("GitShot", f"Đã có bản mới {tag} — mở menu khay hệ thống để tải.")
+            if not (tag and is_newer_version(tag, __version__)):
+                if manual:
+                    QMessageBox.information(self.window, "Cập nhật",
+                                            f"Đang dùng bản mới nhất ({__version__}).")
+                return
+            url = ""
+            for asset in (data or {}).get("assets", []):
+                if asset.get("name") == "GitShot.exe":
+                    url = asset.get("browser_download_url", "")
+                    break
+            if not url:
+                url = f"https://github.com/hieuka001/GitShot/releases/download/{tag}/GitShot.exe"
+            self.status(f"Có bản GitShot mới {tag}.")
+            if not getattr(sys, "frozen", False):
+                self._tray_msg("GitShot", f"Đã có bản mới {tag} — mở menu khay để tới trang tải.")
                 menu = getattr(self, "_tray_menu", None)
                 if menu is not None:
+                    page = (data or {}).get("html_url", "")
                     act = menu.addAction(f"Tải bản mới {tag}")
-                    act.triggered.connect(lambda: __import__("webbrowser").open(url))
+                    act.triggered.connect(lambda: __import__("webbrowser").open(page))
+                return
+            box = QMessageBox(self.window)
+            box.setWindowTitle("Cập nhật GitShot")
+            box.setText(f"Đã có bản mới {tag} (đang dùng {__version__}).\n"
+                        "Cập nhật ngay? App sẽ tự tải, thay bản mới và mở lại.")
+            b_now = box.addButton("Cập nhật ngay", QMessageBox.AcceptRole)
+            box.addButton("Để sau", QMessageBox.RejectRole)
+            box.exec()
+            if box.clickedButton() == b_now:
+                self._start_self_update(url, tag)
 
-        run_async(fetch, on_done=done, on_fail=lambda m: None)
+        run_async(fetch, on_done=done,
+                  on_fail=(lambda m: QMessageBox.critical(self.window, "Cập nhật", m)
+                           if manual else None))
+
+    def _start_self_update(self, url: str, tag: str):
+        """Tải exe mới về thư mục cấu hình, chạy script thay thế rồi thoát app
+        để script ghi đè exe đang chạy và mở lại bản mới."""
+        from .config import config_dir
+        target = Path(sys.executable)
+        new_file = config_dir() / f"GitShot-{tag}.exe"
+        self.status(f"Đang tải bản {tag}…")
+
+        def download():
+            import urllib.request
+            req = urllib.request.Request(url, headers={"User-Agent": "GitShot"})
+            with urllib.request.urlopen(req, timeout=300) as r, open(new_file, "wb") as f:
+                import shutil
+                shutil.copyfileobj(r, f, 1 << 20)
+            if new_file.stat().st_size < 1_000_000:
+                raise RuntimeError("Tệp tải về quá nhỏ — tải chưa hoàn tất.")
+            return str(new_file)
+
+        def ready(_):
+            bat = config_dir() / "gitshot-update.bat"
+            bat.write_text(build_updater_script(str(new_file), str(target)),
+                           encoding="utf-8")
+            import subprocess
+            subprocess.Popen(["cmd", "/c", str(bat)],
+                             creationflags=0x00000008 | 0x00000200,  # DETACHED + NEW GROUP
+                             close_fds=True)
+            self.status("Đã tải xong — đang khởi động lại vào bản mới…")
+            QTimer.singleShot(600, QApplication.quit)
+
+        run_async(download, on_done=ready,
+                  on_fail=lambda m: QMessageBox.critical(self.window, "Cập nhật thất bại", m))
 
     # ---------- GitHub ----------
     def uploader(self) -> GitHubUploader:
@@ -918,6 +997,8 @@ class GitShotApp(QObject):
             a = QAction(text, menu); a.triggered.connect(fn); menu.addAction(a)
         menu.addSeparator()
         a_show = QAction("Mở GitShot", menu); a_show.triggered.connect(self.window.show); menu.addAction(a_show)
+        a_upd = QAction("Kiểm tra bản mới", menu)
+        a_upd.triggered.connect(lambda: self._check_update(manual=True)); menu.addAction(a_upd)
         a_quit = QAction("Thoát", menu); a_quit.triggered.connect(QApplication.quit); menu.addAction(a_quit)
         self.tray.setContextMenu(menu)
         self.tray.activated.connect(lambda r: self.window.show() if r == QSystemTrayIcon.DoubleClick else None)

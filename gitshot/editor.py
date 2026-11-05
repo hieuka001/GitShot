@@ -10,7 +10,7 @@ import io
 import math
 
 from PIL import Image
-from PySide6.QtCore import Qt, QBuffer, QByteArray, QIODevice, QObject, QThread, Signal
+from PySide6.QtCore import Qt, QBuffer, QByteArray, QIODevice, QObject, QPoint, QThread, Signal
 from PySide6.QtGui import QColor, QFont, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import (
     QColorDialog, QDialog, QHBoxLayout, QInputDialog, QLabel, QLineEdit,
@@ -84,14 +84,36 @@ class Canvas(QWidget):
         self._preview: QPixmap | None = None
         self._last = None
         self.step_counter = 0
-        self.setFixedSize(pixmap.size())
+        # Tỉ lệ HIỂN THỊ: ảnh lớn được thu vừa khung cửa sổ (trước đây hiện
+        # 100% pixel thật nên trông như bị "tự zoom to"). Ảnh gốc giữ nguyên
+        # độ phân giải khi lưu/tải lên — chỉ cách hiển thị thay đổi.
+        self.scale = 1.0
+        self._apply_size()
         self.setCursor(Qt.CrossCursor)
+
+    def _apply_size(self):
+        from PySide6.QtCore import QSize
+        self.setFixedSize(QSize(max(1, round(self.pm.width() * self.scale)),
+                                max(1, round(self.pm.height() * self.scale))))
+
+    def set_display_scale(self, s: float):
+        self.scale = max(0.05, min(1.0, s))
+        self._apply_size()
+        self.update()
 
     def set_pixmap(self, pm: QPixmap):
         self.pm = pm
         self._preview = None
-        self.setFixedSize(pm.size())
+        self._apply_size()
         self.update()
+
+    def _img(self, e) -> QPoint:
+        """Tọa độ chuột trên widget (đã thu nhỏ) -> tọa độ pixel ảnh gốc."""
+        pos = e.position().toPoint()
+        x = int(pos.x() / self.scale) if self.scale else pos.x()
+        y = int(pos.y() / self.scale) if self.scale else pos.y()
+        return QPoint(max(0, min(self.pm.width() - 1, x)),
+                      max(0, min(self.pm.height() - 1, y)))
 
     def _pen(self):
         return QPen(QColor(self._get_color()), self._get_width(), Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin)
@@ -119,7 +141,7 @@ class Canvas(QWidget):
     def mousePressEvent(self, e):
         if e.button() != Qt.LeftButton:
             return
-        pos = e.position().toPoint()
+        pos = self._img(e)
         tool = self._get_tool()
         if tool == "step":
             self._on_change()
@@ -153,7 +175,7 @@ class Canvas(QWidget):
     def mouseMoveEvent(self, e):
         if self._start is None:
             return
-        pos = e.position().toPoint()
+        pos = self._img(e)
         tool = self._get_tool()
         if tool == "pen":
             if self._last is not None:
@@ -178,7 +200,7 @@ class Canvas(QWidget):
     def mouseReleaseEvent(self, e):
         if self._start is None:
             return
-        pos = e.position().toPoint()
+        pos = self._img(e)
         tool = self._get_tool()
         # Snapshot hoàn tác đã được chụp tại mousePress — KHÔNG chụp lại ở đây,
         # nếu không mỗi nét khung/che mờ tốn 2 lần Hoàn tác mới mất.
@@ -199,7 +221,7 @@ class Canvas(QWidget):
     def paintEvent(self, e):
         p = QPainter(self)
         p.fillRect(self.rect(), QColor("#111827"))  # nền tối để thấy phần góc trong suốt (ảnh bo góc)
-        p.drawPixmap(0, 0, self._preview or self.pm)
+        p.drawPixmap(self.rect(), self._preview or self.pm)
         p.end()
 
 
@@ -267,6 +289,10 @@ class EditorWindow(QMainWindow):
         pm = pil_to_pixmap(image)
         self.canvas = Canvas(pm, lambda: self._tool, lambda: self._color,
                              lambda: self._width, self._push_undo)
+        # Thu ảnh lớn cho vừa khung hiển thị tối đa ~1060x640 (không phóng to
+        # ảnh nhỏ) — hết cảnh editor mở ra là ảnh tràn màn hình.
+        if pm.width() > 0 and pm.height() > 0:
+            self.canvas.set_display_scale(min(1.0, 1060 / pm.width(), 640 / pm.height()))
 
         central = QWidget()
         root = QVBoxLayout(central)
@@ -318,7 +344,8 @@ class EditorWindow(QMainWindow):
         root.addLayout(actions)
 
         self.setCentralWidget(central)
-        self.resize(min(1180, pm.width() + 60), min(820, pm.height() + 170))
+        s = self.canvas.scale
+        self.resize(min(1180, int(pm.width() * s) + 60), min(820, int(pm.height() * s) + 170))
 
     # ---------- công cụ ----------
     def _set_tool(self, key):
