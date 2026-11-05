@@ -12,9 +12,9 @@ from pathlib import Path
 
 from PIL import Image
 from PySide6.QtCore import QObject, Qt, QTimer, Signal, QSize
-from PySide6.QtGui import QAction, QIcon, QPixmap
+from PySide6.QtGui import QAction, QColor, QIcon, QPixmap
 from PySide6.QtWidgets import (
-    QApplication, QCheckBox, QComboBox, QFileDialog, QFrame,
+    QApplication, QCheckBox, QComboBox, QFileDialog, QFrame, QGraphicsDropShadowEffect,
     QGridLayout, QGroupBox, QHBoxLayout, QInputDialog, QLabel, QLineEdit, QListWidget,
     QListWidgetItem, QMainWindow, QMenu, QMessageBox, QPushButton, QSpinBox,
     QStackedWidget, QSystemTrayIcon, QTextEdit, QVBoxLayout, QWidget,
@@ -38,47 +38,68 @@ from .tools_extra import (
 from .utils import format_link, make_filename
 
 STYLE = """
-/* ===== Professional: graphite phẳng, 1 màu nhấn, viền mảnh, không trang trí thừa ===== */
-QMainWindow, QDialog { background: #0E1013; color: #E7EAEE; font-family: 'Segoe UI'; font-size: 13px; }
-QFrame#sidebar { background: #12151A; border-right: 1px solid #232830; }
-QLabel#logo { font-size: 17px; font-weight: 700; color: #FFFFFF; }
+/* ===== Liquid Glass — chiều sâu nhiều lớp: nền ambient, kính mờ, viền sáng, bóng đổ tầng ===== */
+QMainWindow, QDialog { background: qlineargradient(x1:0,y1:0,x2:1,y2:1, stop:0 #0A0E1A, stop:0.45 #0C1522, stop:1 #141024);
+    color: #E8EDF5; font-family: 'Segoe UI'; font-size: 13px; }
+QFrame#sidebar { background: rgba(255,255,255,0.038); border-right: 1px solid rgba(255,255,255,0.09); }
 QLabel#pageTitle { font-size: 18px; font-weight: 600; color: #FFFFFF; }
-QLabel#subtitle { color: #8A94A3; font-size: 12px; }
-QLabel#version { color: #5C6672; font-size: 11px; }
-QLabel#chip { background: #171C22; color: #A7B4C4; border: 1px solid #262D36; border-radius: 8px; padding: 5px 9px; font-size: 11.5px; }
-QFrame#divider { background: #232830; max-height: 1px; }
-QPushButton { background: #1A1F26; color: #E7EAEE; border: 1px solid #2A313B; border-radius: 8px; padding: 7px 14px; }
-QPushButton:hover { background: #21272F; border-color: #3A434F; }
-QPushButton:pressed { background: #171C22; }
-QPushButton#primaryBtn { background: #0284C7; color: #FFFFFF; font-weight: 600; border: 1px solid #0284C7; padding: 8px 18px; }
-QPushButton#primaryBtn:hover { background: #0369A1; border-color: #0369A1; }
-QPushButton#nav { background: transparent; border: 1px solid transparent; border-radius: 8px; padding: 9px 12px; text-align: left; font-size: 13.5px; font-weight: 500; color: #B9C2CE; }
-QPushButton#nav:hover { background: #1A1F26; color: #E7EAEE; }
-QPushButton#nav:checked { background: rgba(2,132,199,0.16); border-color: rgba(56,168,240,0.35); color: #FFFFFF; }
-QPushButton#card { background: #15181D; border: 1px solid #242A32; border-radius: 10px; padding: 12px 10px; font-size: 13px; font-weight: 500; color: #DDE3EA; }
-QPushButton#card:hover { background: #1A1F26; border-color: #38A8F0; color: #FFFFFF; }
-QGroupBox { background: transparent; border: 1px solid #232830; border-radius: 10px; margin-top: 14px; padding-top: 12px; font-weight: 600; color: #C6CEDA; }
-QGroupBox::title { subcontrol-origin: margin; left: 12px; padding: 0 6px; background: #0E1013; }
-QLineEdit, QComboBox, QSpinBox, QTextEdit { background: #15181D; border: 1px solid #2A313B; border-radius: 8px; padding: 7px 10px; color: #E7EAEE; }
-QLineEdit:focus, QComboBox:focus, QSpinBox:focus { border-color: #38A8F0; }
-QLineEdit#hotkeyCapturing { border-color: #38A8F0; background: rgba(2,132,199,0.12); color: #BFE3FA; }
-QListWidget { background: #12151A; border: 1px solid #232830; border-radius: 10px; }
-QToolButton { background: #1A1F26; border: 1px solid #2A313B; border-radius: 8px; padding: 6px 11px; color: #DDE3EA; }
-QToolButton:hover { border-color: #3A434F; }
-QToolButton:checked { background: rgba(2,132,199,0.22); border-color: #38A8F0; color: #FFFFFF; }
+QLabel#subtitle { color: #93A1B5; font-size: 12px; }
+QLabel#version { color: #66738A; font-size: 10px; }
+QFrame#divider { background: rgba(255,255,255,0.09); max-height: 1px; }
+QPushButton { background: rgba(255,255,255,0.06); color: #E8EDF5; border: 1px solid rgba(255,255,255,0.13); border-radius: 9px; padding: 7px 14px; }
+QPushButton:hover { background: rgba(255,255,255,0.10); border-color: rgba(125,211,252,0.45); }
+QPushButton#primaryBtn { background: qlineargradient(x1:0,y1:0,x2:1,y2:0, stop:0 #0284C7, stop:1 #6D28D9);
+    color: #FFFFFF; font-weight: 600; border: 1px solid rgba(255,255,255,0.28); padding: 8px 18px; }
+QPushButton#primaryBtn:hover { background: qlineargradient(x1:0,y1:0,x2:1,y2:0, stop:0 #0EA5E9, stop:1 #7C3AED); }
+QPushButton#navIcon { background: transparent; border: 1px solid transparent; border-radius: 12px; padding: 0; }
+QPushButton#navIcon:hover { background: rgba(255,255,255,0.08); }
+QPushButton#navIcon:checked { background: qlineargradient(x1:0,y1:0,x2:1,y2:1, stop:0 rgba(2,132,199,0.42), stop:1 rgba(109,40,217,0.38));
+    border-color: rgba(125,211,252,0.50); }
+QPushButton#card { background: qlineargradient(x1:0,y1:0,x2:0,y2:1, stop:0 rgba(255,255,255,0.095), stop:1 rgba(255,255,255,0.045));
+    border: 1px solid rgba(255,255,255,0.13); border-radius: 14px; padding: 13px 10px; font-size: 13px; font-weight: 500; color: #E2E9F4; }
+QPushButton#card:hover { background: qlineargradient(x1:0,y1:0,x2:0,y2:1, stop:0 rgba(255,255,255,0.14), stop:1 rgba(255,255,255,0.07));
+    border-color: rgba(125,211,252,0.60); color: #FFFFFF; }
+QGroupBox { background: rgba(255,255,255,0.028); border: 1px solid rgba(255,255,255,0.09); border-radius: 14px; margin-top: 14px; padding-top: 12px; font-weight: 600; color: #C9D4E4; }
+QGroupBox::title { subcontrol-origin: margin; left: 12px; padding: 0 6px; }
+QLineEdit, QComboBox, QSpinBox, QTextEdit { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.14); border-radius: 9px; padding: 7px 10px; color: #EDF2FA; }
+QLineEdit:focus, QComboBox:focus, QSpinBox:focus { border-color: rgba(125,211,252,0.75); background: rgba(255,255,255,0.08); }
+QLineEdit#hotkeyCapturing { border-color: #38BDF8; background: rgba(2,132,199,0.14); color: #CFEAFB; }
+QListWidget { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.09); border-radius: 12px; }
+QToolButton { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.13); border-radius: 9px; padding: 6px 11px; color: #E2E9F4; }
+QToolButton:hover { border-color: rgba(125,211,252,0.45); }
+QToolButton:checked { background: rgba(2,132,199,0.30); border-color: #38BDF8; color: #FFFFFF; }
 QScrollArea { border: none; background: transparent; }
 QScrollArea > QWidget > QWidget { background: transparent; }
-QLabel#status { color: #8A94A3; font-size: 12px; }
+QScrollBar:vertical { background: transparent; width: 10px; margin: 2px; }
+QScrollBar::handle:vertical { background: rgba(255,255,255,0.16); border-radius: 5px; min-height: 30px; }
+QScrollBar::handle:vertical:hover { background: rgba(255,255,255,0.28); }
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }
+QLabel#status { color: #93A9C4; font-size: 12px; }
 QCheckBox { spacing: 8px; }
+QToolTip { background: #1B2331; color: #E8EDF5; border: 1px solid rgba(255,255,255,0.16); padding: 5px 8px; }
 """
 
 
-def icon_path() -> Path:
+def asset_path(rel: str) -> Path:
     base = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent.parent))
-    p = base / "assets" / "icon.png"
+    p = base / "assets" / rel
     if p.exists():
         return p
-    return Path(__file__).resolve().parent.parent / "assets" / "icon.png"
+    return Path(__file__).resolve().parent.parent / "assets" / rel
+
+
+def icon_path() -> Path:
+    return asset_path("icon.png")
+
+
+def depth_shadow(widget, blur: int = 22, dy: int = 6, alpha: int = 95):
+    """Bóng đổ mềm tạo chiều sâu giữa các lớp kính."""
+    eff = QGraphicsDropShadowEffect(widget)
+    eff.setBlurRadius(blur)
+    eff.setOffset(0, dy)
+    eff.setColor(QColor(0, 0, 0, alpha))
+    widget.setGraphicsEffect(eff)
+    return widget
 
 
 def _png_bytes(img: Image.Image) -> bytes:
@@ -829,40 +850,43 @@ class MainWindow(QMainWindow):
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
 
-        # ----- Sidebar -----
+        # ----- Sidebar dạng icon -----
         sidebar = QFrame()
         sidebar.setObjectName("sidebar")
-        sidebar.setFixedWidth(208)
+        sidebar.setFixedWidth(68)
         sb = QVBoxLayout(sidebar)
-        sb.setContentsMargins(14, 16, 14, 14)
-        logo_row = QHBoxLayout()
+        sb.setContentsMargins(11, 14, 11, 12)
+        sb.setSpacing(8)
         ic = icon_path()
         if ic.exists():
             mark = QLabel()
-            mark.setPixmap(QPixmap(str(ic)).scaled(26, 26, Qt.KeepAspectRatio, Qt.SmoothTransformation))
-            logo_row.addWidget(mark)
-        logo = QLabel("GitShot")
-        logo.setObjectName("logo")
-        logo_row.addWidget(logo)
-        logo_row.addStretch()
-        sb.addLayout(logo_row)
-        sb.addSpacing(18)
+            mark.setPixmap(QPixmap(str(ic)).scaled(30, 30, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+            mark.setAlignment(Qt.AlignCenter)
+            mark.setToolTip("GitShot")
+            sb.addWidget(mark)
+        sb.addSpacing(10)
         self._nav_buttons = {}
-        for key, label in [("home", "Trang chủ"), ("tools", "Công cụ"),
-                           ("history", "Lịch sử"), ("settings", "Cài đặt")]:
-            b = QPushButton(label)
-            b.setObjectName("nav")
+        for key, icon_name, tip in [("home", "home", "Trang chủ"), ("tools", "tools", "Công cụ"),
+                                    ("history", "history", "Lịch sử"), ("settings", "settings", "Cài đặt")]:
+            b = QPushButton()
+            b.setObjectName("navIcon")
             b.setCheckable(True)
+            b.setFixedSize(46, 46)
+            ip = asset_path(f"icons/{icon_name}.png")
+            if ip.exists():
+                b.setIcon(QIcon(str(ip)))
+                b.setIconSize(QSize(22, 22))
+            b.setToolTip(tip)
             b.clicked.connect(lambda _=False, k=key: self.show_page(k))
             self._nav_buttons[key] = b
-            sb.addWidget(b)
+            sb.addWidget(b, 0, Qt.AlignHCenter)
         sb.addStretch()
-        self.chip = QLabel()
-        self.chip.setObjectName("chip")
-        self.chip.setWordWrap(True)
+        self.chip = QLabel("●")
+        self.chip.setAlignment(Qt.AlignCenter)
         sb.addWidget(self.chip)
-        ver = QLabel(f"Phiên bản {__version__}")
+        ver = QLabel(__version__)
         ver.setObjectName("version")
+        ver.setAlignment(Qt.AlignCenter)
         sb.addWidget(ver)
         root.addWidget(sidebar)
 
@@ -899,8 +923,9 @@ class MainWindow(QMainWindow):
             fallback = item[3] if len(item) > 3 else ""
             b = QPushButton(label)
             b.setObjectName("card")
-            b.setMinimumHeight(84)
+            b.setMinimumHeight(86)
             b.clicked.connect(fn)
+            depth_shadow(b)
             if action:
                 self._hk_cards[action] = (b, label, fallback)
             grid.addWidget(b, i // cols, i % cols)
@@ -982,6 +1007,7 @@ class MainWindow(QMainWindow):
             b.setObjectName("card")
             b.setMinimumHeight(92)
             b.clicked.connect(fn)
+            depth_shadow(b)
             grid.addWidget(b, i // 3, i % 3)
         lay.addLayout(grid)
         lay.addStretch()
@@ -1040,10 +1066,12 @@ class MainWindow(QMainWindow):
     def _refresh_chip(self):
         gh = self.app_ref.config.github
         if gh.token:
-            owner = gh.owner or "(tự lấy từ token)"
-            self.chip.setText(f"GitHub: {owner}/{gh.repo}")
+            owner = gh.owner or "(theo token)"
+            self.chip.setStyleSheet("color: #34D399; font-size: 13px;")
+            self.chip.setToolTip(f"GitHub: {owner}/{gh.repo}")
         else:
-            self.chip.setText("GitHub: chưa cấu hình")
+            self.chip.setStyleSheet("color: #F59E0B; font-size: 13px;")
+            self.chip.setToolTip("GitHub: chưa cấu hình")
 
     def refresh_history(self):
         self.list.clear()

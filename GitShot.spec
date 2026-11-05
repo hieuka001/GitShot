@@ -2,7 +2,7 @@
 """Đóng gói GitShot thành 1 file GitShot.exe (PyInstaller, Windows)."""
 from PyInstaller.utils.hooks import collect_all
 
-datas = [("assets/icon.png", "assets"), ("assets/icon.ico", "assets")]
+datas = [("assets/icon.png", "assets"), ("assets/icon.ico", "assets"), ("assets/icons", "assets/icons")]
 binaries = []
 hiddenimports = []
 for pkg in ("imageio_ffmpeg",):
