@@ -1,5 +1,10 @@
 name: Build GitShot.exe (Windows)
 
+# GITHUB_TOKEN mặc định ở repo mới chỉ có quyền đọc -> bước tạo Release bị 403.
+# Cấp rõ quyền ghi nội dung để action-gh-release tạo được Release khi push tag.
+permissions:
+  contents: write
+
 on:
   push:
     branches: [main]
