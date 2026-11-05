@@ -63,28 +63,48 @@ def grab_active_window() -> Image.Image:
     return grab_fullscreen()
 
 
-def scrolling_capture(bbox, steps: int = 6, delay: float = 0.55, scroll_amount: int = -5) -> Image.Image:
+def _wheel_scroll(cx: int, cy: int, notches: int = -3):
+    """Cuộn bánh xe chuột tại điểm (cx, cy) bằng Win32 mouse_event trực tiếp.
+
+    Bản cũ dùng pyautogui kèm 1 cú CLICK THẬT vào giữa vùng chụp — click có
+    thể bấm trúng link/nút làm trang đổi nội dung, và pyautogui cũng là thêm
+    1 tầng dễ lỗi. Nay: chỉ dời con trỏ tới tâm vùng rồi phát sự kiện cuộn.
+    """
+    if sys.platform != "win32":
+        return
+    user32 = ctypes.windll.user32
+    user32.SetCursorPos(int(cx), int(cy))
+    time.sleep(0.05)
+    MOUSEEVENTF_WHEEL = 0x0800
+    WHEEL_DELTA = 120
+    user32.mouse_event(MOUSEEVENTF_WHEEL, 0, 0, int(notches * WHEEL_DELTA), None)
+
+
+def scrolling_capture(bbox, steps: int = 12, delay: float = 0.55) -> Image.Image:
     """Chụp cuộn: chụp vùng đã chọn, cuộn chuột xuống, chụp tiếp, rồi ghép.
 
     Dừng sớm khi khung hình không thay đổi nữa (đã tới cuối trang).
     """
-    import pyautogui
+    import logging
 
     from .stitch import stitch_images
 
-    pyautogui.FAILSAFE = False
+    log = logging.getLogger("gitshot.scroll")
     cx = (bbox[0] + bbox[2]) // 2
     cy = (bbox[1] + bbox[3]) // 2
-    pyautogui.click(cx, cy)
-    time.sleep(0.25)
+    log.info("Chụp cuộn bắt đầu: bbox=%s tâm=(%d,%d)", bbox, cx, cy)
+    _wheel_scroll(cx, cy, 0)  # chỉ dời con trỏ vào vùng, chưa cuộn
+    time.sleep(0.3)
     frames = [grab_region(bbox)]
-    for _ in range(steps):
-        pyautogui.scroll(scroll_amount, x=cx, y=cy)
+    for i in range(steps):
+        _wheel_scroll(cx, cy, -3)
         time.sleep(delay)
         frame = grab_region(bbox)
         if frame.tobytes() == frames[-1].tobytes():
+            log.info("Dừng ở bước %d: khung hình không đổi (cuối trang)", i + 1)
             break  # hết nội dung để cuộn
         frames.append(frame)
+    log.info("Chụp cuộn: %d khung hình", len(frames))
     if len(frames) == 1:
         return frames[0]
     return stitch_images(frames)

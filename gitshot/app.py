@@ -334,9 +334,7 @@ class SettingsPanel(QWidget):
 
         g2 = QGroupBox("Chụp")
         v = QVBoxLayout(g2)
-        self.chk_smart = QCheckBox("Nhận ô thông minh khi chụp vùng")
-        self.chk_smart.setChecked(config.smart_snap)
-        self.chk_round = QCheckBox("Bo góc tròn cho ảnh chụp theo ô/cửa sổ")
+        self.chk_round = QCheckBox("Bo góc tròn cho ảnh chụp cửa sổ")
         self.chk_round.setChecked(config.rounded_corners)
         rowr = QHBoxLayout()
         rowr.addWidget(QLabel("Bán kính bo góc:"))
@@ -352,7 +350,7 @@ class SettingsPanel(QWidget):
         self.c_imgfmt = QComboBox(); self.c_imgfmt.addItems(["png", "jpg", "webp"])
         self.c_imgfmt.setCurrentText(config.image_format if config.image_format in ("png", "jpg", "webp") else "png")
         rowf.addWidget(self.c_imgfmt); rowf.addStretch()
-        v.addWidget(self.chk_smart); v.addWidget(self.chk_round); v.addLayout(rowr)
+        v.addWidget(self.chk_round); v.addLayout(rowr)
         v.addWidget(self.chk_copy); v.addWidget(self.chk_create); v.addWidget(self.chk_local)
         v.addWidget(self.chk_quick); v.addLayout(rowf)
         lay.addWidget(g2)
@@ -409,7 +407,6 @@ class SettingsPanel(QWidget):
         cfg.github.copy_format = self.c_fmt.currentText()
         cfg.github.auto_copy = self.chk_copy.isChecked()
         cfg.github.auto_create_repo = self.chk_create.isChecked()
-        cfg.smart_snap = self.chk_smart.isChecked()
         cfg.rounded_corners = self.chk_round.isChecked()
         cfg.corner_radius = self.s_radius.value()
         cfg.save_local_copy = self.chk_local.isChecked()
@@ -713,7 +710,7 @@ class GitShotApp(QObject):
             self._after_shot(Image.open(path))
 
     def _select_region(self, callback):
-        sel = RegionSelector(smart=self.config.smart_snap)
+        sel = RegionSelector()
         self._selector = sel
 
         def on_selected(bbox, snapped):
