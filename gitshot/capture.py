@@ -1,0 +1,84 @@
+"""Chụp màn hình: toàn màn hình / vùng / cửa sổ đang dùng / chụp cuộn."""
+from __future__ import annotations
+
+import ctypes
+import ctypes.wintypes
+import sys
+import time
+
+from PIL import Image
+
+
+def grab_fullscreen() -> Image.Image:
+    from PIL import ImageGrab
+    return ImageGrab.grab(all_screens=True)
+
+
+def grab_region(bbox: tuple[int, int, int, int]) -> Image.Image:
+    """bbox = (x1, y1, x2, y2) theo tọa độ màn hình thật."""
+    from PIL import ImageGrab
+    return ImageGrab.grab(bbox=bbox, all_screens=True)
+
+
+def foreground_window_rect() -> tuple[int, int, int, int] | None:
+    """Khung của cửa sổ đang active (Windows). Hệ khác -> None."""
+    if sys.platform != "win32":
+        return None
+    try:
+        user32 = ctypes.windll.user32
+        hwnd = user32.GetForegroundWindow()
+        rect = ctypes.wintypes.RECT()  # type: ignore[attr-defined]
+        if user32.GetWindowRect(hwnd, ctypes.byref(rect)):
+            return (rect.left, rect.top, rect.right, rect.bottom)
+    except Exception:
+        return None
+    return None
+
+
+def grab_active_window() -> Image.Image:
+    rect = foreground_window_rect()
+    if rect and rect[2] > rect[0] and rect[3] > rect[1]:
+        return grab_region(rect)
+    return grab_fullscreen()
+
+
+def scrolling_capture(bbox, steps: int = 6, delay: float = 0.55, scroll_amount: int = -5) -> Image.Image:
+    """Chụp cuộn: chụp vùng đã chọn, cuộn chuột xuống, chụp tiếp, rồi ghép.
+
+    Dừng sớm khi khung hình không thay đổi nữa (đã tới cuối trang).
+    """
+    import pyautogui
+
+    from .stitch import stitch_images
+
+    pyautogui.FAILSAFE = False
+    cx = (bbox[0] + bbox[2]) // 2
+    cy = (bbox[1] + bbox[3]) // 2
+    pyautogui.click(cx, cy)
+    time.sleep(0.25)
+    frames = [grab_region(bbox)]
+    for _ in range(steps):
+        pyautogui.scroll(scroll_amount, x=cx, y=cy)
+        time.sleep(delay)
+        frame = grab_region(bbox)
+        if frame.tobytes() == frames[-1].tobytes():
+            break  # hết nội dung để cuộn
+        frames.append(frame)
+    if len(frames) == 1:
+        return frames[0]
+    return stitch_images(frames)
+
+
+def pixelate(img: Image.Image, bbox: tuple[int, int, int, int], block: int = 12) -> Image.Image:
+    """Làm mờ ô vuông (che thông tin nhạy cảm) vùng bbox TRONG ảnh."""
+    out = img.copy()
+    x1, y1, x2, y2 = bbox
+    x1, y1 = max(0, x1), max(0, y1)
+    x2, y2 = min(out.size[0], x2), min(out.size[1], y2)
+    if x2 <= x1 or y2 <= y1:
+        return out
+    region = out.crop((x1, y1, x2, y2))
+    small = region.resize((max(1, (x2 - x1) // block), max(1, (y2 - y1) // block)), Image.NEAREST)
+    region = small.resize(region.size, Image.NEAREST)
+    out.paste(region, (x1, y1))
+    return out

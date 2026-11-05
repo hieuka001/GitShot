@@ -1,0 +1,54 @@
+name: Build GitShot.exe (Windows)
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Unit tests (logic thuần — upload GitHub, ghép ảnh cuộn, utils)
+        run: |
+          pip install Pillow
+          python -m unittest discover -s tests -v
+
+  build:
+    needs: test
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install pyinstaller
+      - name: Build GitShot.exe
+        run: pyinstaller GitShot.spec --noconfirm
+      - name: Smoke check
+        run: |
+          if (!(Test-Path "dist/GitShot.exe")) { throw "GitShot.exe not found" }
+          Get-Item dist/GitShot.exe | Select-Object Name, Length
+      - uses: actions/upload-artifact@v4
+        with:
+          name: GitShot-Windows
+          path: dist/GitShot.exe
+      - name: Publish release (khi push tag v*)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/GitShot.exe
+          body: |
+            ## GitShot — Chụp màn hình, Enter là lên GitHub
+
+            1. Tải **GitShot.exe** về, chạy luôn (không cần cài đặt).
+            2. Mở app → **Cài đặt GitHub** → dán Personal Access Token (xem hướng dẫn trong README của repo).
+            3. `Ctrl+Shift+1` chụp vùng → sửa nếu cần → ấn **Enter** → link GitHub tự copy vào clipboard.
