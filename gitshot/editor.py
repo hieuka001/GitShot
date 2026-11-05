@@ -64,9 +64,9 @@ def pixmap_to_bytes_for(pm: QPixmap, filename: str) -> bytes:
     buf = io.BytesIO()
     low = (filename or "").lower()
     if low.endswith((".jpg", ".jpeg")):
-        img.convert("RGB").save(buf, "JPEG", quality=90)
+        img.convert("RGB").save(buf, "JPEG", quality=95, subsampling=0)
     elif low.endswith(".webp"):
-        img.save(buf, "WEBP", quality=90)
+        img.save(buf, "WEBP", quality=95)
     else:
         img.save(buf, "PNG")
     return buf.getvalue()
@@ -220,6 +220,10 @@ class Canvas(QWidget):
 
     def paintEvent(self, e):
         p = QPainter(self)
+        # Thu nhỏ MƯỢT (lọc song tuyến) — thiếu hint này Qt thu bằng thuật toán
+        # nhanh làm ảnh xem trước bị răng cưa/mờ, trông như ảnh chụp kém nét.
+        p.setRenderHint(QPainter.SmoothPixmapTransform)
+        p.setRenderHint(QPainter.Antialiasing)
         p.fillRect(self.rect(), QColor("#111827"))  # nền tối để thấy phần góc trong suốt (ảnh bo góc)
         p.drawPixmap(self.rect(), self._preview or self.pm)
         p.end()
@@ -407,10 +411,12 @@ class EditorWindow(QMainWindow):
         self._finish_upload_ui()
         url = result.link(self.config.github.link_type)
         copy_text = format_link(self.config.github.copy_format, url)
-        if self.config.github.auto_copy:
-            _copy(copy_text)
+        # Mặc định: copy link NGAY, không hiện popup hỏi/xác nhận nữa.
+        _copy(copy_text)
         self.uploaded.emit(result)
-        LinkDialog(url, copy_text, self).exec()
+        self.b_upload.setText("Đã tải lên — link đã sao chép")
+        from PySide6.QtCore import QTimer
+        QTimer.singleShot(2600, lambda: self.b_upload.setText("Tải lên GitHub (Enter)"))
 
     def _on_upload_failed(self, msg):
         self._finish_upload_ui()

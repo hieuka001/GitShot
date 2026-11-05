@@ -22,8 +22,8 @@ from PySide6.QtWidgets import (
 
 from . import __version__
 from .capture import (
-    apply_rounded_corners, grab_active_window, grab_fullscreen, grab_region,
-    scrolling_capture,
+    apply_rounded_corners, compute_capture_scale, grab_active_window,
+    grab_fullscreen, grab_region, scrolling_capture,
 )
 from .color_picker import ColorPickerOverlay
 from .config import AppConfig
@@ -112,9 +112,11 @@ def _image_bytes(img: Image.Image, fmt: str = "png") -> bytes:
     buf = io.BytesIO()
     fmt = (fmt or "png").lower()
     if fmt in ("jpg", "jpeg"):
-        img.convert("RGB").save(buf, "JPEG", quality=90)
+        # quality 95 + subsampling 4:4:4: chữ trong ảnh chụp màn hình giữ nét
+        # (mặc định 4:2:0 làm viền chữ bị lem màu)
+        img.convert("RGB").save(buf, "JPEG", quality=95, subsampling=0)
     elif fmt == "webp":
-        img.save(buf, "WEBP", quality=90)  # WebP giữ được kênh alpha (góc bo tròn)
+        img.save(buf, "WEBP", quality=95)  # WebP giữ được kênh alpha (góc bo tròn)
     else:
         img.save(buf, "PNG")
     return buf.getvalue()
@@ -524,6 +526,9 @@ class GitShotApp(QObject):
         self.window.settings_panel.saved.connect(self._rebuild_tray)
         self._build_tray()
         self._register_hotkeys()
+        self._cap_scale = (1.0, 1.0)
+        self._virt_origin = (0, 0)
+        QTimer.singleShot(900, self._probe_capture_scale)  # hiệu chuẩn tỉ lệ pixel thật
         QTimer.singleShot(6000, self._check_update)  # kiểm tra bản mới sau khi mở 6s
 
     def _check_update(self, manual: bool = False):
@@ -788,13 +793,41 @@ class GitShotApp(QObject):
         if path:
             self._after_shot(Image.open(path))
 
+    def _probe_capture_scale(self):
+        """Đo tỉ lệ pixel thật / tọa độ Qt bằng cách chụp thử toàn màn hình
+        1 lần lúc mở app và so với virtualGeometry. Máy scaling 100% -> 1.0
+        (không đổi hành vi); máy 125–150% mà Qt trả tọa độ logic -> tỉ lệ
+        > 1, vùng chụp được phóng đúng về pixel thật nên nét như chụp gốc."""
+        def probe():
+            return grab_fullscreen().size
+
+        def done(size):
+            from PySide6.QtGui import QGuiApplication
+            vg = QGuiApplication.primaryScreen().virtualGeometry()
+            self._cap_scale = compute_capture_scale(size[0], size[1], vg.width(), vg.height())
+            self._virt_origin = (vg.left(), vg.top())
+            import logging
+            logging.info("Hiệu chuẩn chụp: ảnh thật %s, khung Qt %sx%s, tỉ lệ %s",
+                         size, vg.width(), vg.height(), self._cap_scale)
+
+        run_async(probe, on_done=done, on_fail=lambda m: None)
+
+    def _to_physical_bbox(self, bbox):
+        sx, sy = getattr(self, "_cap_scale", (1.0, 1.0))
+        if (sx, sy) == (1.0, 1.0):
+            return bbox
+        ox, oy = getattr(self, "_virt_origin", (0, 0))
+        x1, y1, x2, y2 = bbox
+        return (round(ox + (x1 - ox) * sx), round(oy + (y1 - oy) * sy),
+                round(ox + (x2 - ox) * sx), round(oy + (y2 - oy) * sy))
+
     def _select_region(self, callback):
         sel = RegionSelector()
         self._selector = sel
 
         def on_selected(bbox, snapped):
             self._selector = None
-            callback(bbox, snapped)
+            callback(self._to_physical_bbox(bbox), snapped)
 
         def on_cancel():
             self._selector = None

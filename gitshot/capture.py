@@ -9,6 +9,23 @@ import time
 from PIL import Image
 
 
+def compute_capture_scale(phys_w: int, phys_h: int, virt_w: int, virt_h: int):
+    """Tỉ lệ pixel-thật / tọa-độ-Qt theo từng trục.
+
+    Trên máy Windows để scaling 125–150%, tọa độ lớp phủ (Qt) có thể là tọa
+    độ logic nhỏ hơn pixel thật: không nhân tỉ lệ này, vùng chụp lấy thiếu
+    pixel -> ảnh bị kém nét. Chênh lệch < 2% coi như 1.0 (nhiễu làm tròn).
+    """
+    if virt_w <= 0 or virt_h <= 0:
+        return (1.0, 1.0)
+    sx, sy = phys_w / virt_w, phys_h / virt_h
+    if abs(sx - 1.0) < 0.02:
+        sx = 1.0
+    if abs(sy - 1.0) < 0.02:
+        sy = 1.0
+    return (sx, sy)
+
+
 def grab_fullscreen() -> Image.Image:
     from PIL import ImageGrab
     return ImageGrab.grab(all_screens=True)

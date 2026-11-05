@@ -8,6 +8,22 @@ from gitshot.github_uploader import GitHubError, GitHubUploader
 from gitshot.hotkeys_util import validate_combo
 
 
+class TestCaptureScale(unittest.TestCase):
+    def test_scale_100_percent(self):
+        from gitshot.capture import compute_capture_scale
+        self.assertEqual(compute_capture_scale(1920, 1080, 1920, 1080), (1.0, 1.0))
+
+    def test_scale_150_percent(self):
+        from gitshot.capture import compute_capture_scale
+        sx, sy = compute_capture_scale(2880, 1620, 1920, 1080)
+        self.assertAlmostEqual(sx, 1.5)
+        self.assertAlmostEqual(sy, 1.5)
+
+    def test_tiny_diff_ignored(self):
+        from gitshot.capture import compute_capture_scale
+        self.assertEqual(compute_capture_scale(1925, 1080, 1920, 1080), (1.0, 1.0))
+
+
 class TestVersionCompare(unittest.TestCase):
     def test_newer(self):
         self.assertTrue(utils.is_newer_version("v1.5.0", "1.4.1"))
