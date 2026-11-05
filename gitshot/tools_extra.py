@@ -37,6 +37,8 @@ def split_image(img: Image.Image, rows: int, cols: int) -> list[Image.Image]:
     if rows < 1 or cols < 1:
         raise ValueError("Số hàng/cột phải >= 1")
     w, h = img.size
+    # Lưới không được mịn hơn số pixel (tránh sinh ô 0 pixel)
+    rows, cols = min(rows, h), min(cols, w)
     cw, ch = w // cols, h // rows
     parts = []
     for r in range(rows):
@@ -64,12 +66,18 @@ def make_thumbnail(img: Image.Image, max_side: int = 800) -> Image.Image:
 
 def ocr_image(img: Image.Image, lang: str = "vie+eng") -> str:
     """Trích chữ bằng Tesseract nếu máy có cài; không có -> báo rõ cách cài."""
+    import shutil
+    if shutil.which("tesseract") is None:
+        raise RuntimeError(
+            "Máy chưa có Tesseract OCR nên tính năng này chưa dùng được. "
+            "Cài Tesseract từ https://github.com/UB-Mannheim/tesseract/wiki rồi mở lại app. "
+            "(Bản .exe hiện chưa đóng gói kèm Tesseract.)"
+        )
     try:
         import pytesseract
     except ImportError as e:
         raise RuntimeError(
-            "Chưa có thư viện OCR. Cài thêm: pip install pytesseract và cài Tesseract OCR "
-            "(https://github.com/UB-Mannheim/tesseract/wiki) rồi thử lại."
+            "Thiếu thư viện pytesseract (chỉ gặp khi chạy từ mã nguồn: pip install pytesseract)."
         ) from e
     try:
         return pytesseract.image_to_string(img, lang=lang).strip()

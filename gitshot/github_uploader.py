@@ -46,8 +46,12 @@ class GitHubUploader:
 
     # ---------- HTTP ----------
     def _default_opener(self, req: urllib.request.Request):
+        import http.client
+        # Timeout giãn theo kích thước dữ liệu gửi: file lớn không bị cắt ở 60s
+        size = len(req.data) if req.data else 0
+        timeout = min(300, 60 + size // (512 * 1024) * 30)
         try:
-            with urllib.request.urlopen(req, timeout=60) as resp:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
                 body = resp.read().decode("utf-8") or "{}"
                 return resp.status, json.loads(body)
         except urllib.error.HTTPError as e:
@@ -59,6 +63,9 @@ class GitHubUploader:
             return e.code, data
         except urllib.error.URLError as e:
             raise GitHubError(f"Không kết nối được GitHub: {e.reason}") from e
+        except (http.client.HTTPException, ConnectionError, TimeoutError, OSError) as e:
+            # Rớt kết nối giữa chừng khi đọc phản hồi... -> lỗi thân thiện, cho phép retry
+            raise GitHubError(f"Mất kết nối tới GitHub giữa chừng: {e}") from e
 
     def _request(self, method: str, url: str, payload: dict | None = None):
         if not self.token:
@@ -70,8 +77,21 @@ class GitHubUploader:
         req.add_header("X-GitHub-Api-Version", "2022-11-28")
         req.add_header("Content-Type", "application/json")
         req.add_header("User-Agent", "GitShot")
-        status, body = self._opener(req)
-        return status, body
+        # Retry lỗi tạm thời (mất mạng, 5xx) tối đa 3 lần với backoff tăng dần
+        import time
+        last_err: Exception | None = None
+        for attempt in range(3):
+            try:
+                status, body = self._opener(req)
+                if status >= 500 and attempt < 2:
+                    time.sleep(0.6 * (attempt + 1))
+                    continue
+                return status, body
+            except GitHubError as e:
+                last_err = e
+                if attempt < 2:
+                    time.sleep(0.6 * (attempt + 1))
+        raise last_err or GitHubError("Không gọi được GitHub.")
 
     # ---------- Tài khoản / repo ----------
     def whoami(self) -> str:
@@ -81,8 +101,14 @@ class GitHubUploader:
         return body.get("login", "")
 
     def repo_exists(self, owner: str, repo: str) -> bool:
-        status, _ = self._request("GET", f"{API}/repos/{owner}/{repo}")
-        return status == 200
+        status, body = self._request("GET", f"{API}/repos/{owner}/{repo}")
+        if status == 200:
+            return True
+        if status in (401, 403):
+            # Token sai/thiếu quyền KHÔNG đồng nghĩa repo không tồn tại —
+            # báo đúng nguyên nhân thay vì đi tạo repo rồi lỗi khó hiểu.
+            raise GitHubError(_friendly(body, status), status)
+        return False
 
     def ensure_repo(self, owner: str, repo: str, private: bool = False) -> None:
         """Tạo repo chứa ảnh nếu chưa có (kèm README + thư mục uploads)."""
@@ -121,11 +147,13 @@ class GitHubUploader:
             "content": base64.b64encode(data).decode("ascii"),
             "branch": branch,
         }
-        url = f"{API}/repos/{owner}/{repo}/contents/{path}"
+        from urllib.parse import quote
+        url = f"{API}/repos/{owner}/{repo}/contents/{quote(path, safe='/')}"
         status, body = self._request("PUT", url, payload)
         if status in (409, 422):
-            # File trùng tên (chụp 2 ảnh cùng 1 giây) -> lấy sha rồi ghi bản mới
-            s2, cur = self._request("GET", f"{url}?ref={branch}")
+            # File trùng tên -> lấy sha rồi ghi bản mới (tên file nay đã chống
+            # trùng theo mili-giây, nhánh này chỉ còn là lưới an toàn)
+            s2, cur = self._request("GET", f"{url}?ref={quote(branch, safe='')}")
             if s2 == 200 and cur.get("sha"):
                 payload["sha"] = cur["sha"]
                 status, body = self._request("PUT", url, payload)

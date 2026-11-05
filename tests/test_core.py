@@ -52,8 +52,12 @@ class FakeOpener:
 
 class TestUtils(unittest.TestCase):
     def test_filename(self):
-        n = make_filename(now=datetime(2026, 11, 5, 14, 30, 5))
-        self.assertEqual(n, "shot_2026-11-05_14-30-05.png")
+        now = datetime(2026, 11, 5, 14, 30, 5)
+        n = make_filename(now=now)
+        self.assertTrue(n.startswith("shot_2026-11-05_14-30-05_"), n)
+        self.assertTrue(n.endswith(".png"), n)
+        # Hai lần sinh trong cùng 1 giây (thậm chí cùng đối tượng now) phải khác nhau
+        self.assertNotEqual(make_filename(now=now), make_filename(now=now))
 
     def test_upload_path(self):
         p = make_upload_path("uploads/{yyyy}/{MM}", "a.png", now=datetime(2026, 11, 5))

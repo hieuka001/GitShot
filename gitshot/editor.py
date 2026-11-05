@@ -57,6 +57,21 @@ def pixmap_to_png_bytes(pm: QPixmap) -> bytes:
     return bytes(ba)
 
 
+def pixmap_to_bytes_for(pm: QPixmap, filename: str) -> bytes:
+    """Mã hóa pixmap theo đuôi file đích: .jpg/.webp nén nhỏ hơn PNG nhiều."""
+    import io
+    img = pixmap_to_pil(pm)
+    buf = io.BytesIO()
+    low = (filename or "").lower()
+    if low.endswith((".jpg", ".jpeg")):
+        img.convert("RGB").save(buf, "JPEG", quality=90)
+    elif low.endswith(".webp"):
+        img.save(buf, "WEBP", quality=90)
+    else:
+        img.save(buf, "PNG")
+    return buf.getvalue()
+
+
 class Canvas(QWidget):
     """Vùng vẽ: thao tác chuột vẽ trực tiếp lên QPixmap nền."""
 
@@ -165,16 +180,16 @@ class Canvas(QWidget):
             return
         pos = e.position().toPoint()
         tool = self._get_tool()
+        # Snapshot hoàn tác đã được chụp tại mousePress — KHÔNG chụp lại ở đây,
+        # nếu không mỗi nét khung/che mờ tốn 2 lần Hoàn tác mới mất.
         if tool == "pen":
-            pass  # đã vẽ trong lúc di chuột; snapshot lấy ở lần nhấn sau / khi đổi công cụ
+            pass  # đã vẽ trong lúc di chuột
         elif tool == "blur":
-            self._on_change()
             img = pixmap_to_pil(self.pm)
             bbox = (min(self._start.x(), pos.x()), min(self._start.y(), pos.y()),
                     max(self._start.x(), pos.x()), max(self._start.y(), pos.y()))
             self.pm = pil_to_pixmap(pixelate(img, bbox))
         else:
-            self._on_change()
             self._draw_shape(self.pm, tool, self._start, pos, True)
         self._start = None
         self._last = None
@@ -320,8 +335,10 @@ class EditorWindow(QMainWindow):
             self._color = c.name()
 
     def _push_undo(self):
+        # Giới hạn 15 snapshot: mỗi bản là 1 pixmap đầy đủ (ảnh 2560×1440 ≈
+        # 15 MB) — 30 bản từng ngốn tới ~440 MB RAM.
         self._undo.append(self.canvas.pm.copy())
-        if len(self._undo) > 30:
+        if len(self._undo) > 15:
             self._undo.pop(0)
 
     def _do_undo(self):
@@ -339,7 +356,7 @@ class EditorWindow(QMainWindow):
             return
         self.b_upload.setEnabled(False)
         self.b_upload.setText("Đang tải lên GitHub…")
-        data = pixmap_to_png_bytes(self.canvas.pm)
+        data = pixmap_to_bytes_for(self.canvas.pm, self.filename)
         fname = self.filename
 
         self._worker = _UploadWorker(lambda: self._upload_fn(data, fname))
@@ -371,6 +388,15 @@ class EditorWindow(QMainWindow):
     def _on_upload_failed(self, msg):
         self._finish_upload_ui()
         QMessageBox.critical(self, "Upload thất bại", msg)
+
+    def closeEvent(self, e):
+        # Đang tải lên mà đóng cửa sổ sẽ hủy QThread đang chạy -> có thể crash.
+        if self._thread is not None:
+            QMessageBox.information(self, "Đang tải lên",
+                                    "Ảnh đang được tải lên GitHub. Đợi tải xong rồi đóng.")
+            e.ignore()
+            return
+        super().closeEvent(e)
 
     # ---------- phím tắt ----------
     def keyPressEvent(self, e):

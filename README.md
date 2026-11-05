@@ -50,13 +50,15 @@ Liên kết được tự động sao chép vào clipboard. Kiểu liên kết (
 
 ## Tính năng
 
-- Chụp vùng thông minh: tự nhận ô/cửa sổ tại vị trí con trỏ, nhấp để chụp đúng ô, cạnh tự hít khi kéo chọn, ảnh bo góc tròn theo cửa sổ.
+- Chụp vùng thông minh: tự nhận ô/cửa sổ tại vị trí con trỏ, nhấp để chụp đúng ô, cạnh tự hít khi kéo chọn, ảnh bo góc tròn theo cửa sổ. Khớp tọa độ theo DPI từng màn hình (scaling 125–150%).
 - Chụp toàn màn hình (đa màn hình), cửa sổ hiện tại, chụp cuộn tự ghép, chụp lại vùng cũ, chụp trễ, chụp tự động theo chu kỳ kèm tự động tải lên.
-- Quay màn hình MP4 và GIF theo vùng hoặc toàn màn hình.
+- Quay màn hình MP4 và GIF theo vùng hoặc toàn màn hình — ghi thẳng xuống đĩa theo luồng, quay dài không ngốn RAM.
 - Trình sửa ảnh tích hợp: bút, đường thẳng, mũi tên, khung, elip, chữ, đánh số bước, che mờ, hoàn tác.
-- Công cụ: lấy mã màu, thước đo, OCR, ghép ảnh, tách ảnh theo lưới, tạo ảnh thu nhỏ, kiểm tra hash MD5/SHA256.
+- Định dạng ảnh PNG/JPG/WebP; chế độ chụp xong tải lên ngay không mở trình sửa.
+- Kéo-thả file ảnh vào cửa sổ để mở sửa/tải lên; menu chuột phải trong Lịch sử (mở tệp, mở thư mục, xóa mục).
+- Công cụ: lấy mã màu, thước đo, OCR (cần Tesseract cài riêng), ghép ảnh, tách ảnh theo lưới, tạo ảnh thu nhỏ, kiểm tra hash MD5/SHA256.
 - Lịch sử dạng lưới, nhấp đúp để sao chép lại liên kết.
-- Chạy nền tại khay hệ thống; phím tắt toàn cục tự cấu hình.
+- Chạy nền tại khay hệ thống; phím tắt toàn cục tự cấu hình; một tiến trình duy nhất; tự báo khi có bản mới.
 - Bản sao cục bộ tại thư mục Pictures/GitShot.
 
 ## Lưu ý kỹ thuật
@@ -64,6 +66,8 @@ Liên kết được tự động sao chép vào clipboard. Kiểu liên kết (
 - Kho chứa ảnh cần ở chế độ Public để liên kết mở được không cần đăng nhập.
 - Token chỉ lưu tại `%APPDATA%/GitShot/config.json` trên máy người dùng.
 - Giới hạn tải lên của GitHub API là 100 MB mỗi tệp.
+- Nhật ký lỗi ghi tại `%APPDATA%/GitShot/gitshot.log` — gửi kèm file này khi báo lỗi.
+- OCR cần Tesseract cài riêng trên máy (bản .exe chưa đóng gói kèm).
 
 ## Phát triển
 

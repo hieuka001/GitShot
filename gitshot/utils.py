@@ -2,15 +2,44 @@
 from __future__ import annotations
 
 import hashlib
+import itertools
+import os
 import re
+import shutil
 from datetime import datetime
+from pathlib import Path
+
+_counter = itertools.count()
+
+
+def atomic_write_text(path: Path, text: str, backup: bool = True) -> None:
+    """Ghi file NGUYÊN TỬ: ghi file tạm cùng thư mục rồi thay thế (os.replace).
+
+    App bị tắt/crash giữa chừng khi ghi cũng không làm hỏng file thật.
+    Giữ thêm 1 bản .bak của nội dung trước đó để khôi phục khi cần.
+    """
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if backup and path.exists():
+        try:
+            shutil.copyfile(path, path.with_suffix(path.suffix + ".bak"))
+        except Exception:
+            pass
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp.write_text(text, encoding="utf-8")
+    os.replace(tmp, path)
 
 
 def make_filename(prefix: str = "shot", ext: str = "png", now: datetime | None = None) -> str:
-    """Tên file duy nhất dạng shot_2026-11-05_14-30-05.png."""
+    """Tên file DUY NHẤT dạng shot_2026-11-05_14-30-05_12307.png.
+
+    Thêm mili-giây + bộ đếm trong tiến trình: 2 lần chụp trong cùng 1 giây
+    (thậm chí cùng mili-giây) vẫn khác tên — hết ghi đè ảnh cũ.
+    """
     now = now or datetime.now()
     ext = ext.lstrip(".").lower() or "png"
-    return f"{prefix}_{now:%Y-%m-%d_%H-%M-%S}.{ext}"
+    seq = next(_counter) % 100
+    return f"{prefix}_{now:%Y-%m-%d_%H-%M-%S}_{now.microsecond // 1000:03d}{seq:02d}.{ext}"
 
 
 def make_upload_path(folder_pattern: str, filename: str, now: datetime | None = None) -> str:
@@ -30,10 +59,12 @@ def make_upload_path(folder_pattern: str, filename: str, now: datetime | None = 
 
 
 def build_links(owner: str, repo: str, branch: str, path: str) -> dict[str, str]:
-    """Ba dạng link cho 1 file đã upload lên GitHub."""
-    raw = f"https://raw.githubusercontent.com/{owner}/{repo}/{branch}/{path}"
-    cdn = f"https://cdn.jsdelivr.net/gh/{owner}/{repo}@{branch}/{path}"
-    page = f"https://github.com/{owner}/{repo}/blob/{branch}/{path}"
+    """Ba dạng link cho 1 file đã upload lên GitHub (đường dẫn được URL-encode)."""
+    from urllib.parse import quote
+    enc = quote(path, safe="/")
+    raw = f"https://raw.githubusercontent.com/{owner}/{repo}/{branch}/{enc}"
+    cdn = f"https://cdn.jsdelivr.net/gh/{owner}/{repo}@{branch}/{enc}"
+    page = f"https://github.com/{owner}/{repo}/blob/{branch}/{enc}"
     return {"raw": raw, "cdn": cdn, "page": page}
 
 
@@ -56,3 +87,13 @@ def sanitize_repo_name(name: str) -> str:
 
 def short_hash(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()[:8]
+
+
+def _version_tuple(text: str) -> tuple[int, ...]:
+    nums = re.findall(r"\d+", text or "")
+    return tuple(int(n) for n in nums[:4]) or (0,)
+
+
+def is_newer_version(latest: str, current: str) -> bool:
+    """True nếu `latest` (vd 'v1.5.0') mới hơn `current` (vd '1.4.1')."""
+    return _version_tuple(latest) > _version_tuple(current)

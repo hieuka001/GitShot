@@ -13,10 +13,26 @@ MODIFIERS = set(MOD_ORDER)
 NO_MODIFIER_KEYS = {f"f{i}" for i in range(1, 25)} | {"print screen"}
 
 
+SPECIAL_KEYS = {
+    "space", "tab", "enter", "print screen", "insert", "delete", "home", "end",
+    "page up", "page down", "up", "down", "left", "right", "backspace",
+    "caps lock", ",", ".", "/", ";", "'", "[", "]", "-", "=", "\\", "`",
+}
+
+
+def _is_known_key(key: str) -> bool:
+    if len(key) == 1:
+        return key.isalnum() or key in SPECIAL_KEYS
+    if key in SPECIAL_KEYS:
+        return True
+    return key.startswith("f") and key[1:].isdigit() and 1 <= int(key[1:]) <= 24
+
+
 def build_combo(modifiers, key: str) -> str:
     """Ghép danh sách modifier + phím chính thành tổ hợp chuẩn, đúng thứ tự."""
     mods = [m for m in MOD_ORDER if m in set(x.lower() for x in modifiers)]
-    return "+".join(mods + [key.strip().lower()])
+    key = (key or "").strip().lower()
+    return "+".join(mods + [key] if key else mods)
 
 
 def split_combo(combo: str) -> tuple[list[str], str]:
@@ -30,11 +46,18 @@ def validate_combo(combo: str) -> str:
     """Trả về "" nếu hợp lệ, ngược lại là câu báo lỗi tiếng Việt."""
     if not combo or not combo.strip():
         return ""  # trống = không đặt phím tắt cho hành động này (hợp lệ)
-    mods, key = split_combo(combo)
-    if not key:
+    parts = [p.strip().lower() for p in combo.split("+") if p.strip()]
+    mods = [p for p in parts if p in MODIFIERS]
+    keys = [p for p in parts if p not in MODIFIERS]
+    if not keys:
         return "Thiếu phím chính (hãy nhấn thêm 1 phím chữ/số/F)."
+    if len(keys) > 1:
+        return "Tổ hợp chỉ được có 1 phím chính."
     if len(set(mods)) != len(mods):
         return "Tổ hợp có phím bổ trợ bị lặp."
+    key = keys[0]
+    if not _is_known_key(key):
+        return f"Phím '{key}' không được hỗ trợ."
     if not mods and key not in NO_MODIFIER_KEYS:
         return "Hãy thêm Ctrl, Alt hoặc Shift (chỉ phím F1–F24 và Print Screen mới được đứng một mình)."
     return ""

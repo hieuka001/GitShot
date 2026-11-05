@@ -19,18 +19,32 @@ def _row_signature(img: Image.Image, step: int = 4) -> list[tuple[int, ...]]:
     return sig
 
 
-def _rows_match(a: tuple[int, ...], b: tuple[int, ...], tol: int = 0) -> bool:
-    # Ảnh chụp màn hình là PNG không mất dữ liệu -> hàng trùng phải khớp tuyệt đối.
-    # Dùng sai số > 0 sẽ gây nhận nhầm trên các vùng gradient trơn.
-    return all(abs(x - y) <= tol for x, y in zip(a, b))
+def _rows_match(a: tuple[int, ...], b: tuple[int, ...]) -> bool:
+    """Hai hàng coi như trùng khi >= 90% điểm mẫu GIỐNG HỆT và số điểm lệch
+    hẳn (> 8 mức xám) cũng <= 10%.
+
+    Lý do không dùng sai số đều: vùng gradient trơn dịch 1 hàng chỉ lệch mỗi
+    điểm ~1 mức -> sai số đều sẽ nhận nhầm. Phần tử động trên trang thật
+    (con trỏ nhấp nháy, đồng hồ giây) chỉ phá vài điểm mẫu, còn lại giống hệt
+    vì cùng một lần render — tiêu chí "giống hệt đa số" phân biệt đúng cả hai.
+    """
+    if len(a) != len(b) or not a:
+        return False
+    exact = 0
+    big = 0
+    allowed_big = max(1, len(a) // 10)
+    for x, y in zip(a, b):
+        d = abs(x - y)
+        if d == 0:
+            exact += 1
+        elif d > 8:
+            big += 1
+            if big > allowed_big:
+                return False
+    return exact * 10 >= len(a) * 9
 
 
-def find_overlap(top: Image.Image, bottom: Image.Image, min_overlap: int = 8) -> int:
-    """Số hàng của `bottom` đã xuất hiện ở cuối `top` (0 nếu không chồng)."""
-    if top.size[0] != bottom.size[0]:
-        bottom = bottom.resize(top.size)
-    sig_top = _row_signature(top)
-    sig_bottom = _row_signature(bottom)
+def _find_overlap_sigs(sig_top, sig_bottom, min_overlap: int = 8) -> int:
     max_overlap = min(len(sig_top), len(sig_bottom)) - 1
     for overlap in range(max_overlap, min_overlap - 1, -1):
         start = len(sig_top) - overlap
@@ -48,16 +62,29 @@ def find_overlap(top: Image.Image, bottom: Image.Image, min_overlap: int = 8) ->
     return 0
 
 
+def find_overlap(top: Image.Image, bottom: Image.Image, min_overlap: int = 8) -> int:
+    """Số hàng của `bottom` đã xuất hiện ở cuối `top` (0 nếu không chồng)."""
+    if top.size[0] != bottom.size[0]:
+        bottom = bottom.resize((top.size[0], bottom.size[1]))
+    return _find_overlap_sigs(_row_signature(top), _row_signature(bottom), min_overlap)
+
+
 def stitch_images(images: list[Image.Image]) -> Image.Image:
-    """Ghép danh sách ảnh (theo thứ tự cuộn xuống) thành 1 ảnh dài."""
+    """Ghép danh sách ảnh (theo thứ tự cuộn xuống) thành 1 ảnh dài.
+
+    Chữ ký hàng của ảnh kết quả được CACHE và nối dài dần — bản cũ tính lại
+    chữ ký cho toàn bộ ảnh đã ghép ở mỗi frame khiến trang càng dài càng chậm.
+    """
     imgs = [im.convert("RGB") for im in images if im is not None]
     if not imgs:
         raise ValueError("Không có ảnh để ghép")
     result = imgs[0]
+    sig_result = _row_signature(result)
     for nxt in imgs[1:]:
         if nxt.size[0] != result.size[0]:
             nxt = nxt.resize((result.size[0], int(nxt.size[1] * result.size[0] / nxt.size[0])))
-        overlap = find_overlap(result, nxt)
+        sig_nxt = _row_signature(nxt)
+        overlap = _find_overlap_sigs(sig_result, sig_nxt)
         if overlap >= nxt.size[1]:
             continue  # ảnh mới nằm trọn trong ảnh cũ (cuộn không đổi)
         piece = nxt.crop((0, overlap, nxt.size[0], nxt.size[1]))
@@ -65,4 +92,5 @@ def stitch_images(images: list[Image.Image]) -> Image.Image:
         canvas.paste(result, (0, 0))
         canvas.paste(piece, (0, result.size[1]))
         result = canvas
+        sig_result = sig_result + sig_nxt[overlap:]
     return result

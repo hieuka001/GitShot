@@ -19,9 +19,9 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Unit tests (logic thuần — upload GitHub, ghép ảnh cuộn, utils)
+      - name: Unit tests
         run: |
-          pip install Pillow
+          pip install Pillow numpy imageio imageio-ffmpeg
           python -m unittest discover -s tests -v
 
   build:
@@ -35,13 +35,18 @@ jobs:
       - name: Install dependencies
         run: |
           pip install -r requirements.txt
-          pip install pyinstaller
+          pip install "pyinstaller>=6,<7"
       - name: Build GitShot.exe
         run: pyinstaller GitShot.spec --noconfirm
-      - name: Smoke check
+      - name: Smoke check — kiểm tra exe tồn tại và CHẠY THỬ (--selftest)
+        shell: pwsh
         run: |
           if (!(Test-Path "dist/GitShot.exe")) { throw "GitShot.exe not found" }
           Get-Item dist/GitShot.exe | Select-Object Name, Length
+          $p = Start-Process .\dist\GitShot.exe -ArgumentList "--selftest" -PassThru
+          if (-not $p.WaitForExit(90000)) { $p.Kill(); throw "GitShot.exe --selftest không tự thoát sau 90s" }
+          if ($p.ExitCode -ne 0) { throw "GitShot.exe --selftest thoát với mã $($p.ExitCode)" }
+          Write-Host "Selftest OK"
       - uses: actions/upload-artifact@v4
         with:
           name: GitShot-Windows
@@ -52,8 +57,10 @@ jobs:
         with:
           files: dist/GitShot.exe
           body: |
-            ## GitShot — Chụp màn hình, Enter là lên GitHub
+            ## GitShot
 
-            1. Tải **GitShot.exe** về, chạy luôn (không cần cài đặt).
-            2. Mở app → **Cài đặt GitHub** → dán Personal Access Token (xem hướng dẫn trong README của repo).
-            3. `Ctrl+Shift+1` chụp vùng → sửa nếu cần → ấn **Enter** → link GitHub tự copy vào clipboard.
+            1. Tải **GitShot.exe**, chạy trực tiếp (không cần cài đặt).
+            2. Mở **Cài đặt** → dán Personal Access Token của GitHub (hướng dẫn trong README).
+            3. Chụp bằng phím tắt, sửa nếu cần, ấn **Enter** — liên kết GitHub tự sao chép.
+
+            Cấu hình và token của bản cũ được giữ nguyên khi thay exe mới.

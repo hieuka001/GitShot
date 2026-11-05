@@ -19,23 +19,25 @@ class ColorPickerOverlay(QWidget):
         self.setGeometry(geo)
         self._ox, self._oy = geo.topLeft().x(), geo.topLeft().y()
         self._shot = screenshot
-        self._pil = pil_image  # PIL RGB theo tọa độ vật lý của ảnh chụp
+        # Convert RGB đúng 1 LẦN khi mở: bản cũ convert toàn bộ ảnh chụp ở
+        # mỗi sự kiện di chuột/mỗi lần vẽ -> rê chuột trên màn 4K giật rõ.
+        self._rgb = pil_image.convert("RGB") if pil_image is not None else None
         self._pos = None
 
     def _color_at(self, pos):
-        if self._pil is None or pos is None:
+        if self._rgb is None or pos is None:
             return None
         x, y = pos.x(), pos.y()
         # Ảnh chụp có thể khác tỉ lệ với geometry Qt khi DPI scale != 100%:
         # quy đổi tuyến tính theo kích thước.
         if self.width() > 0 and self.height() > 0:
-            px = int(x * self._pil.size[0] / self.width())
-            py = int(y * self._pil.size[1] / self.height())
+            px = int(x * self._rgb.size[0] / self.width())
+            py = int(y * self._rgb.size[1] / self.height())
         else:
             px, py = x, y
-        px = max(0, min(self._pil.size[0] - 1, px))
-        py = max(0, min(self._pil.size[1] - 1, py))
-        r, g, b = self._pil.convert("RGB").getpixel((px, py))[:3]
+        px = max(0, min(self._rgb.size[0] - 1, px))
+        py = max(0, min(self._rgb.size[1] - 1, py))
+        r, g, b = self._rgb.getpixel((px, py))[:3]
         return (r, g, b)
 
     def mouseMoveEvent(self, e):
@@ -56,7 +58,9 @@ class ColorPickerOverlay(QWidget):
 
     def paintEvent(self, e):
         p = QPainter(self)
-        p.drawPixmap(0, 0, self._shot)
+        # Vẽ ảnh chụp phủ đúng khung widget (trước đây vẽ nguyên kích thước
+        # pixel vật lý nên lệch/cắt khi scaling != 100%)
+        p.drawPixmap(self.rect(), self._shot)
         rgb = self._color_at(self._pos)
         p.setFont(QFont("Segoe UI", 11, QFont.Bold))
         if self._pos is not None and rgb:

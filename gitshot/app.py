@@ -11,13 +11,13 @@ import sys
 from pathlib import Path
 
 from PIL import Image
-from PySide6.QtCore import QObject, Qt, QTimer, Signal, QSize
-from PySide6.QtGui import QAction, QColor, QIcon, QPixmap
+from PySide6.QtCore import QObject, Qt, QThread, QTimer, Signal, QSize
+from PySide6.QtGui import QAction, QColor, QIcon, QImageReader, QPixmap
 from PySide6.QtWidgets import (
     QApplication, QCheckBox, QComboBox, QFileDialog, QFrame, QGraphicsDropShadowEffect,
     QGridLayout, QGroupBox, QHBoxLayout, QInputDialog, QLabel, QLineEdit, QListWidget,
     QListWidgetItem, QMainWindow, QMenu, QMessageBox, QPushButton, QSpinBox,
-    QStackedWidget, QSystemTrayIcon, QTextEdit, QVBoxLayout, QWidget,
+    QStackedWidget, QSystemTrayIcon, QVBoxLayout, QWidget,
 )
 
 from . import __version__
@@ -103,10 +103,89 @@ def depth_shadow(widget, blur: int = 22, dy: int = 6, alpha: int = 95):
 
 
 def _png_bytes(img: Image.Image) -> bytes:
+    return _image_bytes(img, "png")
+
+
+def _image_bytes(img: Image.Image, fmt: str = "png") -> bytes:
+    """Mã hóa ảnh PIL theo định dạng cấu hình (png/jpg/webp)."""
     import io
     buf = io.BytesIO()
-    img.save(buf, "PNG")
+    fmt = (fmt or "png").lower()
+    if fmt in ("jpg", "jpeg"):
+        img.convert("RGB").save(buf, "JPEG", quality=90)
+    elif fmt == "webp":
+        img.save(buf, "WEBP", quality=90)  # WebP giữ được kênh alpha (góc bo tròn)
+    else:
+        img.save(buf, "PNG")
     return buf.getvalue()
+
+
+class _AsyncCall(QObject):
+    """Chạy 1 hàm ở thread nền, báo kết quả về luồng giao diện qua signal."""
+    done = Signal(object)
+    failed = Signal(str)
+
+    def __init__(self, fn):
+        super().__init__()
+        self._fn = fn
+
+    def run(self):
+        try:
+            self.done.emit(self._fn())
+        except Exception as e:
+            self.failed.emit(str(e))
+
+
+_LIVE_THREADS: list = []
+
+
+class _Dispatcher(QObject):
+    """Nhận kết quả ở LUỒNG GIAO DIỆN (nơi nó được tạo ra) rồi mới gọi callback
+    của người dùng — callback chạm vào widget nên tuyệt đối không chạy ở
+    thread nền."""
+
+    def __init__(self, on_done, on_fail, cleanup):
+        super().__init__()
+        self._on_done, self._on_fail, self._cleanup = on_done, on_fail, cleanup
+
+    def handle_done(self, result):
+        try:
+            if self._on_done:
+                self._on_done(result)
+        finally:
+            self._cleanup()
+
+    def handle_failed(self, msg):
+        try:
+            if self._on_fail:
+                self._on_fail(msg)
+        finally:
+            self._cleanup()
+
+
+def run_async(fn, on_done=None, on_fail=None):
+    """Việc nặng (mạng, chụp cuộn, mã hóa) chạy ở thread riêng để giao diện
+    không bao giờ bị đơ. Trả về QThread đang chạy."""
+    worker = _AsyncCall(fn)
+    thread = QThread()
+    worker.moveToThread(thread)
+    thread.started.connect(worker.run)
+
+    def _cleanup():
+        thread.quit()
+        thread.wait(2000)
+        if pair in _LIVE_THREADS:
+            _LIVE_THREADS.remove(pair)
+
+    dispatcher = _Dispatcher(on_done, on_fail, _cleanup)
+    # Giữ tham chiếu tới mọi thành phần tới khi xong việc — để worker rơi
+    # khỏi scope là bị thu hồi bộ nhớ, thread chạy mà không có ai làm.
+    pair = (thread, worker, dispatcher)
+    _LIVE_THREADS.append(pair)
+    worker.done.connect(dispatcher.handle_done)
+    worker.failed.connect(dispatcher.handle_failed)
+    thread.start()
+    return thread
 
 
 _QT_KEY_NAMES = {
@@ -266,8 +345,16 @@ class SettingsPanel(QWidget):
         self.chk_copy = QCheckBox("Tự động sao chép liên kết sau khi tải lên"); self.chk_copy.setChecked(gh.auto_copy)
         self.chk_create = QCheckBox("Tự tạo kho chứa ảnh nếu chưa có"); self.chk_create.setChecked(gh.auto_create_repo)
         self.chk_local = QCheckBox("Lưu bản sao trong thư mục Pictures/GitShot"); self.chk_local.setChecked(config.save_local_copy)
+        self.chk_quick = QCheckBox("Chụp xong tải lên ngay (không mở trình sửa ảnh)")
+        self.chk_quick.setChecked(config.quick_upload)
+        rowf = QHBoxLayout()
+        rowf.addWidget(QLabel("Định dạng ảnh:"))
+        self.c_imgfmt = QComboBox(); self.c_imgfmt.addItems(["png", "jpg", "webp"])
+        self.c_imgfmt.setCurrentText(config.image_format if config.image_format in ("png", "jpg", "webp") else "png")
+        rowf.addWidget(self.c_imgfmt); rowf.addStretch()
         v.addWidget(self.chk_smart); v.addWidget(self.chk_round); v.addLayout(rowr)
         v.addWidget(self.chk_copy); v.addWidget(self.chk_create); v.addWidget(self.chk_local)
+        v.addWidget(self.chk_quick); v.addLayout(rowf)
         lay.addWidget(g2)
 
         g3 = QGroupBox("Phím tắt")
@@ -326,6 +413,8 @@ class SettingsPanel(QWidget):
         cfg.rounded_corners = self.chk_round.isChecked()
         cfg.corner_radius = self.s_radius.value()
         cfg.save_local_copy = self.chk_local.isChecked()
+        cfg.quick_upload = self.chk_quick.isChecked()
+        cfg.image_format = self.c_imgfmt.currentText()
 
     def _uploader(self) -> GitHubUploader:
         tmp = AppConfig()
@@ -333,22 +422,29 @@ class SettingsPanel(QWidget):
         return GitHubUploader(tmp.github.token)
 
     def _test(self):
-        try:
-            login = self._uploader().whoami()
+        up = self._uploader()
+
+        def ok(login):
             QMessageBox.information(self, "Kết nối OK", f"Token hợp lệ — tài khoản: {login}")
             if not self.e_owner.text().strip():
                 self.e_owner.setText(login)
-        except Exception as e:
-            QMessageBox.critical(self, "Lỗi kết nối", str(e))
+
+        run_async(up.whoami, on_done=ok,
+                  on_fail=lambda m: QMessageBox.critical(self, "Lỗi kết nối", m))
 
     def _create_repo(self):
-        try:
-            up = self._uploader()
+        up = self._uploader()
+        repo_name = self.e_repo.text().strip() or "gitshot-uploads"
+
+        def work():
             owner = self.e_owner.text().strip() or up.whoami()
-            up.ensure_repo(owner, self.e_repo.text().strip() or "gitshot-uploads")
-            QMessageBox.information(self, "Hoàn tất", f"Kho {owner}/{self.e_repo.text().strip()} đã sẵn sàng.")
-        except Exception as e:
-            QMessageBox.critical(self, "Lỗi", str(e))
+            up.ensure_repo(owner, repo_name)
+            return owner
+
+        run_async(work,
+                  on_done=lambda owner: QMessageBox.information(
+                      self, "Hoàn tất", f"Kho {owner}/{repo_name} đã sẵn sàng."),
+                  on_fail=lambda m: QMessageBox.critical(self, "Lỗi", m))
 
     def _save(self):
         conflicts = find_conflicts(self._hotkey_mapping())
@@ -402,6 +498,7 @@ class GitShotApp(QObject):
         self._record_ctrl: RecordControl | None = None
         self._record_kind = "mp4"
         self._owner_cache = self.config.github.owner
+        self._ensured_repos: set = set()
         self._auto = {"timer": None, "left": 0, "bbox": None}
         self.hotkey_fired.connect(self._on_hotkey)
 
@@ -412,6 +509,34 @@ class GitShotApp(QObject):
         self.window.settings_panel.saved.connect(self._rebuild_tray)
         self._build_tray()
         self._register_hotkeys()
+        QTimer.singleShot(6000, self._check_update)  # kiểm tra bản mới sau khi mở 6s
+
+    def _check_update(self):
+        """Hỏi GitHub Releases xem có bản GitShot mới hơn bản đang chạy."""
+        from . import __version__
+
+        def fetch():
+            import json as _json
+            import urllib.request
+            req = urllib.request.Request(
+                "https://api.github.com/repos/hieuka001/GitShot/releases/latest",
+                headers={"User-Agent": "GitShot", "Accept": "application/vnd.github+json"})
+            with urllib.request.urlopen(req, timeout=10) as r:
+                return _json.loads(r.read().decode("utf-8"))
+
+        def done(data):
+            from .utils import is_newer_version
+            tag = (data or {}).get("tag_name", "")
+            if tag and is_newer_version(tag, __version__):
+                url = data.get("html_url", "")
+                self.status(f"Có bản GitShot mới {tag}.")
+                self._tray_msg("GitShot", f"Đã có bản mới {tag} — mở menu khay hệ thống để tải.")
+                menu = getattr(self, "_tray_menu", None)
+                if menu is not None:
+                    act = menu.addAction(f"Tải bản mới {tag}")
+                    act.triggered.connect(lambda: __import__("webbrowser").open(url))
+
+        run_async(fetch, on_done=done, on_fail=lambda m: None)
 
     # ---------- GitHub ----------
     def uploader(self) -> GitHubUploader:
@@ -428,10 +553,15 @@ class GitShotApp(QObject):
         gh = self.config.github
         up = self.uploader()
         owner = self.resolve_owner(up)
-        return up.upload_bytes(
+        # Kiểm tra/tạo repo chỉ cần làm 1 lần cho mỗi (owner, repo) trong phiên
+        key = (owner, gh.repo)
+        auto_create = gh.auto_create_repo and key not in self._ensured_repos
+        result = up.upload_bytes(
             data, filename, owner=owner, repo=gh.repo, branch=gh.branch,
-            folder_pattern=gh.folder_pattern, auto_create_repo=gh.auto_create_repo,
+            folder_pattern=gh.folder_pattern, auto_create_repo=auto_create,
         )
+        self._ensured_repos.add(key)
+        return result
 
     def save_local(self, data: bytes, filename: str) -> Path:
         p = self.config.pictures_folder() / filename
@@ -445,24 +575,37 @@ class GitShotApp(QObject):
     def _after_shot(self, img: Image.Image, kind: str = "image", rounded: bool = False):
         if rounded and self.config.rounded_corners:
             img = apply_rounded_corners(img, self.config.corner_radius)
-        filename = make_filename(ext="png")
+        fmt = (self.config.image_format or "png").lower()
+        filename = make_filename(ext=fmt)
+        buf = _image_bytes(img, fmt)
+        # Lịch sử LUÔN có mục cho ảnh này (kể cả khi tắt lưu bản sao local) —
+        # bản cũ tắt lưu local là upload xong không gắn được link vào lịch sử.
+        local_path = ""
         if self.config.save_local_copy:
-            buf = _png_bytes(img)
-            path = self.save_local(buf, filename)
-            self.history.add(HistoryItem(filename, str(path), History.now_iso(), kind=kind, size=len(buf)))
-            self.window.refresh_history()
+            local_path = str(self.save_local(buf, filename))
+        self.history.add(HistoryItem(filename, local_path, History.now_iso(), kind=kind, size=len(buf)))
+        self.window.refresh_history()
+        if self.config.quick_upload:
+            # Chế độ tải lên ngay: không mở trình sửa, Enter ngầm
+            self.status("Đang tải ảnh lên GitHub…")
+            run_async(lambda: self.upload_bytes(buf, filename),
+                      on_done=lambda r, fn=filename: self._on_uploaded(r, fn),
+                      on_fail=lambda m: self.status(f"Tải lên thất bại: {m}"))
+            return
+        if not self.config.open_editor_after_capture:
+            self.status(f"Đã chụp: {filename}")
+            return
         editor = EditorWindow(img, filename, self.config, self.upload_bytes, self.save_local)
         editor.uploaded.connect(lambda r, fn=filename: self._on_uploaded(r, fn))
+        editor.destroyed.connect(
+            lambda *_: self._editors.remove(editor) if editor in self._editors else None)
         editor.show()
         self._editors.append(editor)
         self.status(f"Đã chụp: {filename}")
 
     def _on_uploaded(self, result, filename: str):
         url = result.link(self.config.github.link_type)
-        for it in self.history.items:
-            if it.filename == filename:
-                self.history.mark_uploaded(it.local_path, url)
-                break
+        self.history.mark_uploaded_by_filename(filename, url)
         self.window.refresh_history()
         self._tray_msg("GitShot", "Đã tải lên. Liên kết đã được sao chép.")
         self.status(f"Đã tải lên GitHub: {url}")
@@ -500,7 +643,11 @@ class GitShotApp(QObject):
         def go(bbox, snapped):
             self.config.last_region = list(bbox)
             self.config.save()
-            self._after_shot(scrolling_capture(bbox))
+            self.status("Đang chụp cuộn…")
+            # Chụp cuộn mất vài giây (cuộn + ghép) — chạy thread nền, app không đơ
+            run_async(lambda: scrolling_capture(bbox),
+                      on_done=lambda img: self._after_shot(img),
+                      on_fail=lambda m: QMessageBox.critical(self.window, "Chụp cuộn", m))
         self._select_region(go)
 
     def capture_delayed(self, seconds: int = 3):
@@ -532,20 +679,22 @@ class GitShotApp(QObject):
             return
         self._auto["left"] -= 1
         img = grab_fullscreen()
-        filename = make_filename()
-        data = _png_bytes(img)
+        filename = make_filename(ext=(self.config.image_format or "png").lower())
+        data = _image_bytes(img, self.config.image_format)
         path = self.save_local(data, filename)
         self.history.add(HistoryItem(filename, str(path), History.now_iso(), size=len(data)))
-        try:
-            result = self.upload_bytes(data, filename)
+        self.window.refresh_history()
+
+        def ok(result):
             url = result.link(self.config.github.link_type)
             self.history.mark_uploaded(str(path), url)
             if self.config.github.auto_copy:
                 QApplication.clipboard().setText(format_link(self.config.github.copy_format, url))
             self.status(f"Đã chụp và tải lên: {url}")
-        except Exception as e:
-            self.status(f"Chụp tự động: lỗi tải lên: {e}")
-        self.window.refresh_history()
+            self.window.refresh_history()
+
+        run_async(lambda: self.upload_bytes(data, filename), on_done=ok,
+                  on_fail=lambda m: self.status(f"Chụp tự động: lỗi tải lên: {m}"))
 
     def capture_from_clipboard(self):
         cb = QApplication.clipboard()
@@ -585,8 +734,13 @@ class GitShotApp(QObject):
 
         def go(bbox, snapped=False):
             from .recorder import ScreenRecorder
+            ext = "gif" if kind == "gif" else "mp4"
+            filename = make_filename(prefix="record", ext=ext)
+            path = self.config.pictures_folder() / filename
+            self._record_path = path
+            self._record_filename = filename
             self._recorder = ScreenRecorder(bbox, fps=self.config.record_fps if kind == "mp4" else 10)
-            self._recorder.start()
+            self._recorder.start(path)
             self._record_ctrl = RecordControl()
             self._record_ctrl.stop_clicked.connect(self._stop_record)
             self._record_ctrl.show()
@@ -609,17 +763,17 @@ class GitShotApp(QObject):
             self._record_ctrl = None
         if not self._recorder:
             return
-        ext = "gif" if self._record_kind == "gif" else "mp4"
-        filename = make_filename(prefix="record", ext=ext)
-        path = self.config.pictures_folder() / filename
+        filename = getattr(self, "_record_filename", make_filename(prefix="record", ext="mp4"))
         try:
-            self._recorder.stop_and_save(path)
+            path = self._recorder.stop_and_save()
         except Exception as e:
             QMessageBox.critical(self.window, "Quay thất bại", str(e))
+            self._recorder = None
             return
         self._recorder = None
         data = path.read_bytes()
-        self.history.add(HistoryItem(filename, str(path), History.now_iso(), kind=ext, size=len(data)))
+        kind = "gif" if path.suffix.lower() == ".gif" else "mp4"
+        self.history.add(HistoryItem(filename, str(path), History.now_iso(), kind=kind, size=len(data)))
         self.window.refresh_history()
         box = QMessageBox(self.window)
         box.setWindowTitle("Đã quay xong")
@@ -628,15 +782,17 @@ class GitShotApp(QObject):
         box.addButton("Để sau", QMessageBox.RejectRole)
         box.exec()
         if box.clickedButton() == b_up:
-            try:
-                result = self.upload_bytes(data, filename)
+            self.status("Đang tải video lên GitHub…")
+
+            def ok(result):
                 url = result.link(self.config.github.link_type)
                 QApplication.clipboard().setText(format_link(self.config.github.copy_format, url))
                 self.history.mark_uploaded(str(path), url)
                 self.window.refresh_history()
                 QMessageBox.information(self.window, "Hoàn tất", f"Liên kết video (đã sao chép):\n{url}")
-            except Exception as e:
-                QMessageBox.critical(self.window, "Upload lỗi", str(e))
+
+            run_async(lambda: self.upload_bytes(data, filename), on_done=ok,
+                      on_fail=lambda m: QMessageBox.critical(self.window, "Upload lỗi", m))
 
     # ---------- Công cụ ----------
     def tool_color_picker(self):
@@ -750,6 +906,7 @@ class GitShotApp(QObject):
         ic = QIcon(str(icon_path()))
         self.tray = QSystemTrayIcon(ic, self.window)
         menu = QMenu()
+        self._tray_menu = menu
         for text, fn in [
             (f"Chụp vùng ({prettify(self.config.hotkeys.region)})", self.capture_region),
             ("Toàn màn hình", self.capture_fullscreen),
@@ -786,14 +943,23 @@ class GitShotApp(QObject):
             (hk.scrolling, "scrolling"), (hk.record, "record"), (hk.gif, "gif"),
             (hk.last_region, "last_region"), (hk.color_picker, "color_picker"),
         ]
+        failed = []
         for combo, name in pairs:
-            if not combo or validate_combo(combo):
+            if not combo:
+                continue
+            if validate_combo(combo):
+                failed.append(combo)
                 continue
             try:
                 keyboard.add_hotkey(combo, lambda n=name: self.hotkey_fired.emit(n), suppress=False)
                 self._hk_registered = True
             except Exception:
-                pass
+                failed.append(combo)
+        if failed:
+            # Không nuốt im lặng nữa: báo rõ tổ hợp nào không đăng ký được
+            self.status("Không đăng ký được phím tắt: "
+                        + ", ".join(prettify(c) for c in failed)
+                        + " — đổi sang tổ hợp khác trong Cài đặt.")
 
     def _rebuild_tray(self):
         if getattr(self, "tray", None):
@@ -840,6 +1006,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.app_ref = app
         self.setWindowTitle("GitShot")
+        self.setAcceptDrops(True)  # kéo-thả file ảnh vào cửa sổ để mở sửa/tải lên
         self.resize(1020, 680)
         ic = icon_path()
         if ic.exists():
@@ -1021,12 +1188,14 @@ class MainWindow(QMainWindow):
         div = QFrame(); div.setObjectName("divider")
         lay.addWidget(div)
         self.list = QListWidget()
-        self.list.setToolTip("Nhấp đúp để sao chép lại liên kết hoặc mở tệp")
+        self.list.setToolTip("Nhấp đúp để sao chép lại liên kết hoặc mở tệp. Chuột phải để có thêm thao tác.")
         self.list.setViewMode(QListWidget.IconMode)
         self.list.setIconSize(QSize(168, 106))
         self.list.setGridSize(QSize(196, 168))
         self.list.setWordWrap(True)
         self.list.itemDoubleClicked.connect(self._history_double)
+        self.list.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.list.customContextMenuRequested.connect(self._history_menu)
         lay.addWidget(self.list, 1)
         self.stack.addWidget(page)
 
@@ -1079,14 +1248,70 @@ class MainWindow(QMainWindow):
             icon = QIcon()
             p = Path(it.local_path)
             if p.exists() and it.kind == "image":
-                pm = QPixmap(str(p))
-                if not pm.isNull():
-                    icon = QIcon(pm.scaled(168, 106, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+                # Đọc ảnh thu nhỏ ngay từ đầu (không nạp full-size rồi mới thu)
+                reader = QImageReader(str(p))
+                sz = reader.size()
+                if sz.isValid():
+                    reader.setScaledSize(sz.scaled(168, 106, Qt.KeepAspectRatio))
+                    thumb = reader.read()
+                    if not thumb.isNull():
+                        icon = QIcon(QPixmap.fromImage(thumb))
             mark = "Đã tải lên" if it.uploaded_url else "Đã lưu"
             item = QListWidgetItem(icon, f"{mark} {it.filename}\n{it.created_at.replace('T', ' ')}")
             item.setData(Qt.UserRole, it)
             item.setToolTip(it.uploaded_url or it.local_path)
             self.list.addItem(item)
+
+    # ----- Kéo-thả file ảnh vào cửa sổ -----
+    def dragEnterEvent(self, e):
+        if e.mimeData().hasUrls():
+            e.acceptProposedAction()
+
+    def dropEvent(self, e):
+        opened = 0
+        for url in e.mimeData().urls():
+            p = Path(url.toLocalFile())
+            if p.suffix.lower() in (".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gif") and p.exists():
+                self.app_ref.open_image_file(p)
+                opened += 1
+                if opened >= 5:
+                    break
+        if opened:
+            self.set_status(f"Đã mở {opened} ảnh từ kéo-thả.")
+
+    # ----- Menu chuột phải trong Lịch sử -----
+    def _history_menu(self, pos):
+        item = self.list.itemAt(pos)
+        if item is None:
+            return
+        it: HistoryItem = item.data(Qt.UserRole)
+        menu = QMenu(self)
+        if it.uploaded_url:
+            menu.addAction("Sao chép liên kết", lambda: (
+                QApplication.clipboard().setText(
+                    format_link(self.app_ref.config.github.copy_format, it.uploaded_url)),
+                self.set_status("Đã sao chép liên kết.")))
+        p = Path(it.local_path) if it.local_path else None
+        if p is not None and p.exists():
+            menu.addAction("Mở tệp", lambda: os.startfile(str(p)) if sys.platform == "win32" else None)
+            menu.addAction("Mở thư mục chứa tệp", lambda: (
+                __import__("subprocess").Popen(["explorer", "/select,", str(p)])
+                if sys.platform == "win32" else None))
+        menu.addSeparator()
+        menu.addAction("Xóa khỏi lịch sử", lambda: self._history_remove(it, delete_file=False))
+        if p is not None and p.exists():
+            menu.addAction("Xóa tệp và mục lịch sử", lambda: self._history_remove(it, delete_file=True))
+        menu.exec(self.list.viewport().mapToGlobal(pos))
+
+    def _history_remove(self, it: HistoryItem, delete_file: bool):
+        if delete_file and it.local_path:
+            try:
+                Path(it.local_path).unlink(missing_ok=True)
+            except Exception:
+                pass
+        self.app_ref.history.remove(it)
+        self.refresh_history()
+        self.set_status("Đã xóa mục lịch sử.")
 
     def _history_double(self, item: QListWidgetItem):
         it: HistoryItem = item.data(Qt.UserRole)

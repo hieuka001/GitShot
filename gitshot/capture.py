@@ -21,18 +21,39 @@ def grab_region(bbox: tuple[int, int, int, int]) -> Image.Image:
 
 
 def foreground_window_rect() -> tuple[int, int, int, int] | None:
-    """Khung của cửa sổ đang active (Windows). Hệ khác -> None."""
+    """Khung của cửa sổ đang active (Windows). Hệ khác -> None.
+
+    Nếu cửa sổ active là chính GitShot (bấm nút chụp cửa sổ từ trong app),
+    đi xuống cửa sổ ngay bên dưới thay vì chụp chính app. Khung lấy theo
+    DWM extended bounds cho khít, không thừa viền vô hình.
+    """
     if sys.platform != "win32":
         return None
     try:
+        import os
+        import ctypes.wintypes as wt
+
+        from .windows_detect import _setup_user32, _window_frame
+
         user32 = ctypes.windll.user32
+        dwm = _setup_user32(user32, wt)
+        user32.GetWindow.argtypes = [wt.HWND, ctypes.c_uint]
+        user32.GetWindow.restype = wt.HWND
         hwnd = user32.GetForegroundWindow()
-        rect = ctypes.wintypes.RECT()  # type: ignore[attr-defined]
-        if user32.GetWindowRect(hwnd, ctypes.byref(rect)):
-            return (rect.left, rect.top, rect.right, rect.bottom)
+        own = os.getpid()
+        for _ in range(12):
+            if not hwnd:
+                return None
+            pid = wt.DWORD()
+            user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+            if pid.value != own:
+                break
+            hwnd = user32.GetWindow(hwnd, 2)  # GW_HWNDNEXT: cửa sổ ngay bên dưới
+        if not hwnd:
+            return None
+        return _window_frame(user32, dwm, hwnd, extended=True)
     except Exception:
         return None
-    return None
 
 
 def grab_active_window() -> Image.Image:

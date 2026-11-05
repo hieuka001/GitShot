@@ -50,6 +50,27 @@ class HotkeyConfig:
     color_picker: str = "ctrl+shift+8"
 
 
+def _coerce(value, default):
+    """Ép giá trị nạp từ JSON về đúng kiểu của giá trị mặc định; không ép được
+    thì giữ mặc định (config bị sửa tay/sai kiểu không làm app crash)."""
+    try:
+        if isinstance(default, bool):
+            if isinstance(value, str):
+                return value.strip().lower() in ("1", "true", "yes", "on")
+            return bool(value)
+        if isinstance(default, int):
+            return int(value)
+        if isinstance(default, float):
+            return float(value)
+        if isinstance(default, str):
+            return value if isinstance(value, str) else str(value)
+        if isinstance(default, list):
+            return list(value) if isinstance(value, (list, tuple)) else default
+        return value
+    except Exception:
+        return default
+
+
 @dataclass
 class AppConfig:
     github: GitHubConfig = field(default_factory=GitHubConfig)
@@ -58,6 +79,8 @@ class AppConfig:
     local_folder: str = ""                # trống = Pictures/GitShot
     open_editor_after_capture: bool = True
     record_fps: int = 15
+    image_format: str = "png"             # png | jpg | webp — định dạng ảnh khi lưu/tải lên
+    quick_upload: bool = False            # True = chụp xong tải lên ngay, không mở trình sửa
     smart_snap: bool = True               # chụp vùng: tự nhận ô/cửa sổ có sẵn
     rounded_corners: bool = True          # ảnh chụp theo ô/cửa sổ được bo góc tròn
     corner_radius: int = 10
@@ -66,30 +89,46 @@ class AppConfig:
     # ---------- load / save ----------
     @classmethod
     def load(cls, path: Path | None = None) -> "AppConfig":
+        """Nạp cấu hình CHỊU LỖI: file hỏng/sai cấu trúc/sai kiểu -> về mặc định
+        từng trường thay vì crash hoặc nạp giá trị rác."""
         path = path or (config_dir() / "config.json")
+        cfg = cls()
         try:
             raw = json.loads(path.read_text(encoding="utf-8"))
+            if not isinstance(raw, dict):
+                return cfg
+        except Exception:
+            # Thử bản sao lưu .bak trước khi chịu thua về mặc định
+            try:
+                raw = json.loads(path.with_suffix(".json.bak").read_text(encoding="utf-8"))
+                if not isinstance(raw, dict):
+                    return cls()
+            except Exception:
+                return cfg
+        try:
+            gh = raw.get("github")
+            if isinstance(gh, dict):
+                for k, v in gh.items():
+                    if hasattr(cfg.github, k):
+                        setattr(cfg.github, k, _coerce(v, getattr(cfg.github, k)))
+            hk = raw.get("hotkeys")
+            if isinstance(hk, dict):
+                for k, v in hk.items():
+                    if hasattr(cfg.hotkeys, k):
+                        setattr(cfg.hotkeys, k, _coerce(v, getattr(cfg.hotkeys, k)))
+            for k in ("save_local_copy", "local_folder", "open_editor_after_capture", "record_fps",
+                      "smart_snap", "rounded_corners", "corner_radius", "last_region",
+                      "image_format", "quick_upload"):
+                if k in raw:
+                    setattr(cfg, k, _coerce(raw[k], getattr(cfg, k)))
         except Exception:
             return cls()
-        cfg = cls()
-        gh = raw.get("github") or {}
-        for k, v in gh.items():
-            if hasattr(cfg.github, k):
-                setattr(cfg.github, k, v)
-        hk = raw.get("hotkeys") or {}
-        for k, v in hk.items():
-            if hasattr(cfg.hotkeys, k):
-                setattr(cfg.hotkeys, k, v)
-        for k in ("save_local_copy", "local_folder", "open_editor_after_capture", "record_fps",
-                  "smart_snap", "rounded_corners", "corner_radius", "last_region"):
-            if k in raw:
-                setattr(cfg, k, raw[k])
         return cfg
 
     def save(self, path: Path | None = None) -> Path:
+        from .utils import atomic_write_text
         path = path or (config_dir() / "config.json")
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(asdict(self), ensure_ascii=False, indent=2), encoding="utf-8")
+        atomic_write_text(path, json.dumps(asdict(self), ensure_ascii=False, indent=2))
         return path
 
     def pictures_folder(self) -> Path:

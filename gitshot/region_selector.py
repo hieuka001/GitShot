@@ -12,12 +12,16 @@ from PySide6.QtCore import Qt, QRect, QPoint, Signal
 from PySide6.QtGui import QColor, QPainter, QPainterPath, QPen, QFont
 from PySide6.QtWidgets import QWidget
 
-from .windows_detect import StableRectTracker, enumerate_rectangles, snap_edges
+from .windows_detect import (
+    StableRectTracker, build_screen_map, enumerate_rectangles,
+    logical_to_physical, physical_to_logical, snap_edges,
+)
 
 
 class RegionSelector(QWidget):
-    selected = Signal(tuple, bool)   # (bbox toàn cục, có_hít_theo_ô_sẵn_không)
+    selected = Signal(tuple, bool)   # (bbox vật lý toàn cục, có_hít_theo_ô_sẵn_không)
     cancelled = Signal()
+    _rects_loaded = Signal(list)
 
     def __init__(self, smart: bool = True):
         super().__init__(None, Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool)
@@ -28,45 +32,100 @@ class RegionSelector(QWidget):
         geo = QGuiApplication.primaryScreen().virtualGeometry()
         self.setGeometry(geo)
         self._ox, self._oy = geo.topLeft().x(), geo.topLeft().y()
+        # Bản đồ màn hình để quy đổi logic (Qt) <-> vật lý (Win32/ImageGrab)
+        screens = []
+        for s in QGuiApplication.screens():
+            g = s.geometry()
+            screens.append((g.x(), g.y(), g.width(), g.height(), s.devicePixelRatio()))
+        self._smap = build_screen_map(screens)
         self.smart = smart
-        self._rects = enumerate_rectangles() if smart else []
+        self._rects: list = []
+        self._load_started = False
         self._tracker = StableRectTracker()
-        self._hover = None        # rect toàn cục (x1,y1,x2,y2,title)
+        self._hover = None        # rect VẬT LÝ toàn cục (x1,y1,x2,y2,title)
         self._start: QPoint | None = None
         self._rect = QRect()      # rect kéo tay (tọa độ widget)
+        self._painted = QRect()   # vùng đã vẽ lần trước (để repaint theo vùng)
+        self._rects_loaded.connect(self._on_rects_loaded)
+
+    def showEvent(self, e):
+        super().showEvent(e)
+        # Nạp danh sách ô ở THREAD NỀN sau khi lớp phủ đã hiện: nhấn phím tắt
+        # là thấy lớp phủ ngay, không khựng vì liệt kê cửa sổ (app lớn có
+        # hàng nghìn ô con) chạy trên luồng giao diện như trước.
+        if self.smart and not self._load_started:
+            self._load_started = True
+            import threading
+            threading.Thread(target=self._load_rects_bg, daemon=True).start()
+
+    def _load_rects_bg(self):
+        self._rects_loaded.emit(enumerate_rectangles())
+
+    def _on_rects_loaded(self, rects):
+        self._rects = rects or []
+        self._tracker.reset()
+        self._hover = None
+        self.update()
 
     # ---------- tọa độ ----------
     def _global_point(self, p: QPoint) -> tuple[int, int]:
-        return (p.x() + self._ox, p.y() + self._oy)
+        """Điểm widget (logic) -> điểm VẬT LÝ toàn cục (cho Win32/ImageGrab)."""
+        return logical_to_physical(p.x() + self._ox, p.y() + self._oy, self._smap)
+
+    def _local_point_from_physical(self, x: int, y: int) -> tuple[int, int]:
+        lx, ly = physical_to_logical(x, y, self._smap)
+        return (lx - self._ox, ly - self._oy)
 
     def _local_rect(self, g) -> QRect:
-        return QRect(g[0] - self._ox, g[1] - self._oy, g[2] - g[0], g[3] - g[1])
+        x1, y1 = self._local_point_from_physical(g[0], g[1])
+        x2, y2 = self._local_point_from_physical(g[2], g[3])
+        return QRect(x1, y1, x2 - x1, y2 - y1)
 
     def _emit_global(self, bbox, snapped: bool):
         self.close()
         self.selected.emit(tuple(int(v) for v in bbox), snapped)
 
     # ---------- chuột / phím ----------
+    def _drawn_rect(self) -> QRect:
+        if self._start is not None and not self._rect.isEmpty():
+            return self._rect.normalized()
+        if self.smart and self._hover:
+            return self._local_rect(self._hover)
+        return QRect()
+
+    def _repaint_around(self, old: QRect, new: QRect):
+        """Chỉ vẽ lại vùng quanh khung cũ + mới (nới cho nhãn), thay vì
+        repaint toàn bộ màn hình ảo ở mỗi pixel di chuột như trước."""
+        area = old.united(new).adjusted(-70, -70, 70, 70)
+        self.update(area)
+
     def mousePressEvent(self, e):
         if e.button() == Qt.LeftButton:
-            self._start = e.position().toPoint()
+            pos = e.position().toPoint()
+            # Chưa từng di chuột (lớp phủ hiện ngay dưới con trỏ đứng yên):
+            # tính ô đang khoanh ngay tại thời điểm nhấn, tránh click bị trượt.
+            if self.smart and self._hover is None and self._rects:
+                gx, gy = self._global_point(pos)
+                self._hover = self._tracker.update(self._rects, gx, gy)
+            self._start = pos
             self._rect = QRect(self._start, self._start)
             self.update()
 
     def mouseMoveEvent(self, e):
         pos = e.position().toPoint()
+        old = self._drawn_rect()
         if self._start is not None:
             self._rect = QRect(self._start, pos)
         elif self.smart:
             gx, gy = self._global_point(pos)
             self._hover = self._tracker.update(self._rects, gx, gy)
-        self.update()
+        self._repaint_around(old, self._drawn_rect())
 
     def mouseReleaseEvent(self, e):
-        if self._start is None:
+        if e.button() != Qt.LeftButton or self._start is None:
             return
         drag = self._rect.normalized()
-        start, self._start = self._start, None
+        self._start = None
         # Thả chuột khi đang có ô được khoanh -> MẶC ĐỊNH chụp đúng ô đó:
         # - nhấp chuột (tay lệch vài px vẫn tính là click), hoặc
         # - kéo nhẹ ngay trong ô (vùng kéo nhỏ hơn 1/3 ô) cũng là ý chọn ô.
@@ -99,8 +158,10 @@ class RegionSelector(QWidget):
             self.cancelled.emit()
         elif e.key() == Qt.Key_S:
             self.smart = not self.smart
-            if self.smart and not self._rects:
-                self._rects = enumerate_rectangles()
+            if self.smart and not self._rects and not self._load_started:
+                self._load_started = True
+                import threading
+                threading.Thread(target=self._load_rects_bg, daemon=True).start()
             self._tracker.reset()
             self._hover = None
             self.update()

@@ -113,6 +113,52 @@ def snap_edges(bbox, rects, threshold: int = 12):
     return (nx1, ny1, nx2, ny2)
 
 
+# ---------- Ánh xạ tọa độ logic (Qt) <-> vật lý (Win32 / ImageGrab) ----------
+# Khi Windows scaling != 100%, tọa độ Qt (logic) và pixel vật lý lệch nhau
+# theo devicePixelRatio của TỪNG màn hình. Hàm thuần dưới đây quy đổi 2 chiều;
+# mọi dpr == 1 thì ánh xạ là đồng nhất (không đổi hành vi ở scaling 100%).
+
+def build_screen_map(screens):
+    """screens: list (lx, ly, lw, lh, dpr) theo tọa độ logic.
+
+    Trả về list (lx, ly, lw, lh, dpr, px, py) với (px, py) là gốc VẬT LÝ
+    suy ra của màn hình đó."""
+    out = []
+    for (lx, ly, lw, lh, dpr) in screens:
+        dpr = float(dpr) if dpr else 1.0
+        out.append((lx, ly, lw, lh, dpr, int(round(lx * dpr)), int(round(ly * dpr))))
+    return out
+
+
+def _screen_for_logical(smap, x, y):
+    for s in smap:
+        if s[0] <= x < s[0] + s[2] and s[1] <= y < s[1] + s[3]:
+            return s
+    return smap[0] if smap else None
+
+
+def _screen_for_physical(smap, x, y):
+    for s in smap:
+        pw, ph = int(round(s[2] * s[4])), int(round(s[3] * s[4]))
+        if s[5] <= x < s[5] + pw and s[6] <= y < s[6] + ph:
+            return s
+    return smap[0] if smap else None
+
+
+def logical_to_physical(x, y, smap):
+    s = _screen_for_logical(smap, x, y)
+    if s is None or s[4] == 1.0:
+        return (int(x), int(y))
+    return (int(round(s[5] + (x - s[0]) * s[4])), int(round(s[6] + (y - s[1]) * s[4])))
+
+
+def physical_to_logical(x, y, smap):
+    s = _screen_for_physical(smap, x, y)
+    if s is None or s[4] == 1.0:
+        return (int(x), int(y))
+    return (int(round(s[0] + (x - s[5]) / s[4])), int(round(s[1] + (y - s[6]) / s[4])))
+
+
 def enumerate_rectangles(max_rects: int = 600) -> list:
     """Liệt kê cửa sổ hiển thị + khung con của cửa sổ đang active (Windows)."""
     if sys.platform != "win32":
@@ -123,53 +169,112 @@ def enumerate_rectangles(max_rects: int = 600) -> list:
         return []
 
 
+def _setup_user32(user32, wt):
+    """Khai báo chữ ký đầy đủ cho các hàm Win32 dùng ở đây.
+
+    Thiếu restype, ctypes hiểu HWND là int 32-bit -> handle 64-bit bị cắt,
+    liệt kê sai cửa sổ mà không báo lỗi. Trả về module dwmapi (hoặc None).
+    """
+    import ctypes
+    user32.GetWindowRect.argtypes = [wt.HWND, ctypes.POINTER(wt.RECT)]
+    user32.GetWindowRect.restype = wt.BOOL
+    user32.IsWindowVisible.argtypes = [wt.HWND]
+    user32.IsWindowVisible.restype = wt.BOOL
+    user32.GetWindowTextW.argtypes = [wt.HWND, wt.LPWSTR, ctypes.c_int]
+    user32.GetWindowTextW.restype = ctypes.c_int
+    user32.GetForegroundWindow.restype = wt.HWND
+    user32.GetWindowThreadProcessId.argtypes = [wt.HWND, ctypes.POINTER(wt.DWORD)]
+    user32.GetWindowThreadProcessId.restype = wt.DWORD
+    user32.GetCursorPos.argtypes = [ctypes.POINTER(wt.POINT)]
+    user32.GetCursorPos.restype = wt.BOOL
+    user32.WindowFromPoint.argtypes = [wt.POINT]
+    user32.WindowFromPoint.restype = wt.HWND
+    user32.GetAncestor.argtypes = [wt.HWND, ctypes.c_uint]
+    user32.GetAncestor.restype = wt.HWND
+    try:
+        dwm = ctypes.windll.dwmapi
+        dwm.DwmGetWindowAttribute.argtypes = [wt.HWND, wt.DWORD, ctypes.c_void_p, wt.DWORD]
+        dwm.DwmGetWindowAttribute.restype = ctypes.c_long  # HRESULT
+        return dwm
+    except Exception:
+        return None
+
+
+_DWMWA_EXTENDED_FRAME_BOUNDS = 9
+_GA_ROOT = 2
+
+
+def _window_frame(user32, dwm, hwnd, extended: bool):
+    """Khung cửa sổ. extended=True dùng DWM extended frame bounds: KHÍT với
+    phần cửa sổ nhìn thấy, không gồm viền resize vô hình (~7px/cạnh) và bóng
+    đổ như GetWindowRect."""
+    import ctypes
+    import ctypes.wintypes as wt
+    r = wt.RECT()
+    if extended and dwm is not None:
+        hr = dwm.DwmGetWindowAttribute(
+            hwnd, _DWMWA_EXTENDED_FRAME_BOUNDS, ctypes.byref(r), ctypes.sizeof(r))
+        if hr == 0 and (r.right - r.left) > 0:
+            return (r.left, r.top, r.right, r.bottom)
+    if user32.GetWindowRect(hwnd, ctypes.byref(r)):
+        return (r.left, r.top, r.right, r.bottom)
+    return None
+
+
 def _enumerate_win32(max_rects: int) -> list:
     import ctypes
     import ctypes.wintypes as wt
+    import os
 
     user32 = ctypes.windll.user32
+    dwm = _setup_user32(user32, wt)
+    own_pid = os.getpid()
     rects: list = []
     seen = set()
-
-    def add(hwnd):
-        r = wt.RECT()
-        if not user32.GetWindowRect(hwnd, ctypes.byref(r)):
-            return
-        w, h = r.right - r.left, r.bottom - r.top
-        if w < 16 or h < 16:
-            return
-        key = (r.left, r.top, r.right, r.bottom)
-        buf = ctypes.create_unicode_buffer(256)
-        user32.GetWindowTextW(hwnd, buf, 256)
-        title = buf.value or ""
-        if key in seen and not title:
-            return
-        seen.add(key)
-        rects.append((r.left, r.top, r.right, r.bottom, title))
-
-    CB = ctypes.WINFUNCTYPE(ctypes.c_bool, wt.HWND, wt.LPARAM)
-
-    import os
-    own_pid = os.getpid()
 
     def is_own(hwnd):
         pid = wt.DWORD()
         user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
         return pid.value == own_pid
 
+    def add(hwnd, extended: bool):
+        frame = _window_frame(user32, dwm, hwnd, extended)
+        if not frame:
+            return
+        w, h = frame[2] - frame[0], frame[3] - frame[1]
+        if w < 16 or h < 16:
+            return
+        buf = ctypes.create_unicode_buffer(256)
+        user32.GetWindowTextW(hwnd, buf, 256)
+        title = buf.value or ""
+        if frame in seen and not title:
+            return
+        seen.add(frame)
+        rects.append((frame[0], frame[1], frame[2], frame[3], title))
+
+    CB = ctypes.WINFUNCTYPE(ctypes.c_bool, wt.HWND, wt.LPARAM)
+
     def enum_top(hwnd, _):
         if user32.IsWindowVisible(hwnd) and not is_own(hwnd):
-            add(hwnd)
+            add(hwnd, extended=True)
         return True
 
     user32.EnumWindows(CB(enum_top), 0)
 
-    # Khung con của cửa sổ đang dùng — nơi có các "ô" cụ thể (nút, panel, ô nhập…)
-    # Nếu cửa sổ foreground là chính GitShot (mở chụp từ nút trong app), dùng
-    # cửa sổ hiển thị trên cùng không phải của app để lấy ô con.
+    # Ô con liệt kê cho HAI gốc: cửa sổ foreground VÀ cửa sổ nằm dưới con trỏ
+    # — rê chuột sang ứng dụng nào cũng có ô chi tiết ở đó, thay vì chỉ 1 cửa sổ.
+    roots = []
     fg = user32.GetForegroundWindow()
-    if not fg or is_own(fg):
-        fg = None
+    if fg and not is_own(fg):
+        roots.append(fg)
+    pt = wt.POINT()
+    if user32.GetCursorPos(ctypes.byref(pt)):
+        under = user32.WindowFromPoint(pt)
+        if under:
+            root = user32.GetAncestor(under, _GA_ROOT) or under
+            if root and not is_own(root) and root not in roots:
+                roots.append(root)
+    if not roots:
         found = []
 
         def enum_first(hwnd, _):
@@ -180,14 +285,17 @@ def _enumerate_win32(max_rects: int) -> list:
 
         user32.EnumWindows(CB(enum_first), 0)
         if found:
-            fg = found[0]
-    if fg:
+            roots = found[:1]
+
+    for root in roots:
         def enum_child(hwnd, _):
             if user32.IsWindowVisible(hwnd):  # bỏ ô ẩn/khung chứa vô hình
-                add(hwnd)
+                add(hwnd, extended=False)
             return len(rects) < max_rects
 
-        user32.EnumChildWindows(fg, CB(enum_child), 0)
+        user32.EnumChildWindows(root, CB(enum_child), 0)
+        if len(rects) >= max_rects:
+            break
 
     # Bỏ các rect trùng hệt nhau, giữ bản có tiêu đề
     uniq: dict = {}
